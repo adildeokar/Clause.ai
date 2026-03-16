@@ -1,9 +1,7 @@
-
-
 # CLAUSE AI PROPRIETARY SOFTWARE LICENSE AGREEMENT
 
-Copyright (c) 2026
-Adil Deokar and DKCDEVKNIGHT TECHNOLOGIES PRIVATE LIMITED
+Copyright (c) 2026  
+Adil Deokar and DKCDEVKNIGHT TECHNOLOGIES PRIVATE LIMITED  
 All Rights Reserved.
 
 ---
@@ -12,8 +10,8 @@ All Rights Reserved.
 
 Clause AI, including all associated source code, algorithms, models, prompts, architecture, documentation, and related materials (collectively referred to as the **"Software"**), is the exclusive intellectual property of:
 
-**Adil Deokar**
-and/or
+**Adil Deokar**  
+and/or  
 **DKCDEVKNIGHT TECHNOLOGIES PRIVATE LIMITED**
 
 All rights, title, and interest in the Software remain solely with the above owners.
@@ -26,8 +24,8 @@ No ownership rights are transferred under this license.
 
 No license, right, or permission to use the Software is granted unless **explicit written consent** has been obtained from:
 
-**Adil Deokar**
-OR
+**Adil Deokar**  
+OR  
 **DKCDEVKNIGHT TECHNOLOGIES PRIVATE LIMITED**
 
 Any permitted usage must be explicitly documented in written authorization.
@@ -40,19 +38,19 @@ Without such written authorization, **all usage is strictly prohibited.**
 
 Without prior written authorization from **Adil Deokar or DKCDEVKNIGHT TECHNOLOGIES PRIVATE LIMITED**, the following actions are strictly prohibited:
 
-* Using the Software for personal, academic, commercial, or enterprise purposes
-* Running or deploying the Software locally or on any server
-* Copying, modifying, adapting, or creating derivative works
-* Publishing or distributing the Software
-* Forking the repository for operational use
-* Reverse engineering or analyzing internal logic
-* Using the Software in part or in whole within another system
-* Training machine learning models using the Software or its outputs
-* Using the Software to build competing products
-* Offering the Software as a service (SaaS or otherwise)
-* Integrating the Software with external services
-* Deploying the Software on cloud infrastructure
-* Hosting the Software publicly or privately
+- Using the Software for personal, academic, commercial, or enterprise purposes  
+- Running or deploying the Software locally or on any server  
+- Copying, modifying, adapting, or creating derivative works  
+- Publishing or distributing the Software  
+- Forking the repository for operational use  
+- Reverse engineering or analyzing internal logic  
+- Using the Software in part or in whole within another system  
+- Training machine learning models using the Software or its outputs  
+- Using the Software to build competing products  
+- Offering the Software as a service (SaaS or otherwise)  
+- Integrating the Software with external services  
+- Deploying the Software on cloud infrastructure  
+- Hosting the Software publicly or privately  
 
 Any attempt to perform the above without authorization constitutes **unauthorized use**.
 
@@ -70,19 +68,19 @@ Viewing the code is allowed solely for **reference purposes** unless otherwise r
 
 All commercial rights relating to Clause AI are exclusively reserved by:
 
-**Adil Deokar**
-and/or
+**Adil Deokar**  
+and/or  
 **DKCDEVKNIGHT TECHNOLOGIES PRIVATE LIMITED**
 
 These rights include but are not limited to:
 
-* SaaS deployment
-* licensing
-* commercialization
-* distribution
-* enterprise integration
-* white-labeling
-* derivative product creation
+- SaaS deployment  
+- licensing  
+- commercialization  
+- distribution  
+- enterprise integration  
+- white-labeling  
+- derivative product creation  
 
 No third party may engage in any commercial activity involving the Software without written authorization.
 
@@ -106,10 +104,10 @@ Unauthorized use of these names in software, marketing materials, or products is
 
 Users may not:
 
-* reverse engineer the Software
-* analyze internal prompts or model orchestration
-* extract proprietary system logic
-* replicate architecture or system design
+- Reverse engineer the Software  
+- Analyze internal prompts or model orchestration  
+- Extract proprietary system logic  
+- Replicate architecture or system design  
 
 These components constitute protected intellectual property.
 
@@ -119,12 +117,12 @@ These components constitute protected intellectual property.
 
 Unauthorized use of the Software constitutes a violation of intellectual property rights and may result in:
 
-* legal action
-* injunctions
-* financial damages
-* termination of access
-* takedown requests
-* DMCA notices
+- Legal action  
+- Injunctions  
+- Financial damages  
+- Termination of access  
+- Takedown requests  
+- DMCA notices  
 
 The owners reserve the right to pursue all legal remedies available under applicable law.
 
@@ -142,16 +140,16 @@ Any disputes arising from the Software or this License shall fall under the excl
 
 Any party seeking permission to use the Software must obtain **written authorization** from:
 
-Adil Deokar
-or
-DKCDEVKNIGHT TECHNOLOGIES PRIVATE LIMITED
+**Adil Deokar**  
+or  
+**DKCDEVKNIGHT TECHNOLOGIES PRIVATE LIMITED**
 
 Authorization must explicitly state:
 
-* scope of usage
-* duration
-* deployment rights
-* modification rights (if any)
+- Scope of usage  
+- Duration  
+- Deployment rights  
+- Modification rights (if any)
 
 Verbal permissions or informal approvals are **not valid**.
 
@@ -161,8 +159,8 @@ Verbal permissions or informal approvals are **not valid**.
 
 Requests for permission or licensing must be directed to the Software owners:
 
-**Adil Deokar**
-or
+**Adil Deokar**  
+or  
 **DKCDEVKNIGHT TECHNOLOGIES PRIVATE LIMITED**
 
 All approvals must be documented in writing.
@@ -177,8 +175,6 @@ Failure to comply with these terms constitutes unauthorized use.
 
 ---
 
-**ALL RIGHTS RESERVED.**
+## ALL RIGHTS RESERVED
 
 Unauthorized use of Clause AI is strictly prohibited without explicit written consent from **Adil Deokar** or **DKCDEVKNIGHT TECHNOLOGIES PRIVATE LIMITED**.
-
----
