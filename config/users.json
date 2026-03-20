@@ -1,0 +1,18 @@
+{
+  "users": [
+    {
+      "email": "admin@clauseai.com",
+      "password": "$2a$12$LJ3a4sKb0sIOOH4p5rkXXe7YVBsJJx5FfNl5I5p3kVFO5k0JQ.pQe",
+      "name": "Admin User",
+      "role": "admin",
+      "note": "Default password: admin123 — change in production"
+    },
+    {
+      "email": "user@clauseai.com",
+      "password": "$2a$12$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.",
+      "name": "Demo User",
+      "role": "user",
+      "note": "Default password: password — change in production"
+    }
+  ]
+}
