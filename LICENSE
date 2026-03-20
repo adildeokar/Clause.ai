@@ -1,0 +1,180 @@
+# CLAUSE AI PROPRIETARY SOFTWARE LICENSE AGREEMENT
+
+Copyright (c) 2026  
+Adil Deokar and DKCDEVKNIGHT TECHNOLOGIES PRIVATE LIMITED  
+All Rights Reserved.
+
+---
+
+## 1. Ownership
+
+Clause AI, including all associated source code, algorithms, models, prompts, architecture, documentation, and related materials (collectively referred to as the **"Software"**), is the exclusive intellectual property of:
+
+**Adil Deokar**  
+and/or  
+**DKCDEVKNIGHT TECHNOLOGIES PRIVATE LIMITED**
+
+All rights, title, and interest in the Software remain solely with the above owners.
+
+No ownership rights are transferred under this license.
+
+---
+
+## 2. License Grant
+
+No license, right, or permission to use the Software is granted unless **explicit written consent** has been obtained from:
+
+**Adil Deokar**  
+OR  
+**DKCDEVKNIGHT TECHNOLOGIES PRIVATE LIMITED**
+
+Any permitted usage must be explicitly documented in written authorization.
+
+Without such written authorization, **all usage is strictly prohibited.**
+
+---
+
+## 3. Strict Prohibition of Unauthorized Use
+
+Without prior written authorization from **Adil Deokar or DKCDEVKNIGHT TECHNOLOGIES PRIVATE LIMITED**, the following actions are strictly prohibited:
+
+- Using the Software for personal, academic, commercial, or enterprise purposes  
+- Running or deploying the Software locally or on any server  
+- Copying, modifying, adapting, or creating derivative works  
+- Publishing or distributing the Software  
+- Forking the repository for operational use  
+- Reverse engineering or analyzing internal logic  
+- Using the Software in part or in whole within another system  
+- Training machine learning models using the Software or its outputs  
+- Using the Software to build competing products  
+- Offering the Software as a service (SaaS or otherwise)  
+- Integrating the Software with external services  
+- Deploying the Software on cloud infrastructure  
+- Hosting the Software publicly or privately  
+
+Any attempt to perform the above without authorization constitutes **unauthorized use**.
+
+---
+
+## 4. Access to Repository
+
+Access to this repository, including visibility of its source code, does **not grant permission to use the Software**.
+
+Viewing the code is allowed solely for **reference purposes** unless otherwise restricted.
+
+---
+
+## 5. Commercial Rights
+
+All commercial rights relating to Clause AI are exclusively reserved by:
+
+**Adil Deokar**  
+and/or  
+**DKCDEVKNIGHT TECHNOLOGIES PRIVATE LIMITED**
+
+These rights include but are not limited to:
+
+- SaaS deployment  
+- licensing  
+- commercialization  
+- distribution  
+- enterprise integration  
+- white-labeling  
+- derivative product creation  
+
+No third party may engage in any commercial activity involving the Software without written authorization.
+
+---
+
+## 6. Derivative Works
+
+Creation of derivative works based on the Software, including modified versions, extensions, integrations, or forks used in production, is strictly prohibited without written consent.
+
+---
+
+## 7. Trademark and Branding
+
+The names **"Clause AI"**, **"ClauseGraph"**, and all associated branding, logos, or identifiers are protected intellectual property.
+
+Unauthorized use of these names in software, marketing materials, or products is prohibited.
+
+---
+
+## 8. Security and Reverse Engineering
+
+Users may not:
+
+- Reverse engineer the Software  
+- Analyze internal prompts or model orchestration  
+- Extract proprietary system logic  
+- Replicate architecture or system design  
+
+These components constitute protected intellectual property.
+
+---
+
+## 9. Enforcement
+
+Unauthorized use of the Software constitutes a violation of intellectual property rights and may result in:
+
+- Legal action  
+- Injunctions  
+- Financial damages  
+- Termination of access  
+- Takedown requests  
+- DMCA notices  
+
+The owners reserve the right to pursue all legal remedies available under applicable law.
+
+---
+
+## 10. Jurisdiction
+
+This License Agreement shall be governed by the laws of **India**.
+
+Any disputes arising from the Software or this License shall fall under the exclusive jurisdiction of courts located in **Maharashtra, India**.
+
+---
+
+## 11. Written Authorization Requirement
+
+Any party seeking permission to use the Software must obtain **written authorization** from:
+
+**Adil Deokar**  
+or  
+**DKCDEVKNIGHT TECHNOLOGIES PRIVATE LIMITED**
+
+Authorization must explicitly state:
+
+- Scope of usage  
+- Duration  
+- Deployment rights  
+- Modification rights (if any)
+
+Verbal permissions or informal approvals are **not valid**.
+
+---
+
+## 12. Contact for Licensing
+
+Requests for permission or licensing must be directed to the Software owners:
+
+**Adil Deokar**  
+or  
+**DKCDEVKNIGHT TECHNOLOGIES PRIVATE LIMITED**
+
+All approvals must be documented in writing.
+
+---
+
+## 13. Acceptance of Terms
+
+By accessing, copying, viewing, or interacting with this repository or Software in any form, the user acknowledges and agrees to the terms of this License.
+
+Failure to comply with these terms constitutes unauthorized use.
+
+---
+
+## ALL RIGHTS RESERVED
+
+Unauthorized use of Clause AI is strictly prohibited without explicit written consent from **Adil Deokar** or **DKCDEVKNIGHT TECHNOLOGIES PRIVATE LIMITED**.
