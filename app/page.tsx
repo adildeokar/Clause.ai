@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Shield, ArrowRight, FileSearch, Brain, Scale, Zap } from "lucide-react";
 
+import { ThemeToggle } from "@/components/theme-toggle";
+
 const features = [
   {
     icon: FileSearch,
@@ -27,13 +29,14 @@ const features = [
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-background">
-      <nav className="fixed top-0 w-full z-50 glass border-b border-white/[0.06]">
+      <nav className="fixed top-0 w-full z-50 glass border-b border-border">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Shield className="h-7 w-7 text-blue-400" />
+            <Shield className="h-7 w-7 text-primary" />
             <span className="text-xl font-bold gradient-text">Clause AI</span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <ThemeToggle />
             <Link
               href="/login"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -83,7 +86,7 @@ export default function LandingPage() {
                 </Link>
                 <Link
                   href="#features"
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-lg glass-card hover:bg-white/[0.06] text-foreground font-medium transition-colors"
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-lg glass-card glass-hover text-foreground font-medium transition-colors"
                 >
                   Learn More
                 </Link>
@@ -108,8 +111,8 @@ export default function LandingPage() {
                 key={feature.title}
                 className="glass-card p-8 rounded-xl glass-hover group"
               >
-                <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center mb-4 group-hover:bg-blue-500/20 transition-colors">
-                  <feature.icon className="h-5 w-5 text-blue-400" />
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
+                  <feature.icon className="h-5 w-5 text-primary" />
                 </div>
                 <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
                 <p className="text-muted-foreground text-sm leading-relaxed">
@@ -142,10 +145,10 @@ export default function LandingPage() {
         </section>
       </main>
 
-      <footer className="border-t border-white/[0.06] py-8">
+      <footer className="border-t border-border py-8">
         <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-blue-400" />
+            <Shield className="h-5 w-5 text-primary" />
             <span className="text-sm font-semibold gradient-text">Clause AI</span>
           </div>
           <p className="text-xs text-muted-foreground">

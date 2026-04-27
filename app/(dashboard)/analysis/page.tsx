@@ -97,10 +97,10 @@ function StatCardSkeleton() {
   return (
     <div className="glass-card p-6 animate-pulse">
       <div className="flex items-center justify-between mb-4">
-        <div className="h-10 w-10 rounded-lg bg-white/[0.06]" />
+        <div className="h-10 w-10 rounded-lg bg-muted" />
       </div>
-      <div className="h-8 w-20 rounded bg-white/[0.06] mb-2" />
-      <div className="h-4 w-28 rounded bg-white/[0.06]" />
+      <div className="h-8 w-20 rounded bg-muted mb-2" />
+      <div className="h-4 w-28 rounded bg-muted" />
     </div>
   );
 }
@@ -110,17 +110,17 @@ function AnalysisCardSkeleton() {
     <div className="glass-card p-5 animate-pulse">
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-white/[0.06]" />
+          <div className="h-10 w-10 rounded-lg bg-muted" />
           <div>
-            <div className="h-4 w-44 rounded bg-white/[0.06] mb-2" />
-            <div className="h-3 w-24 rounded bg-white/[0.06]" />
+            <div className="h-4 w-44 rounded bg-muted mb-2" />
+            <div className="h-3 w-24 rounded bg-muted" />
           </div>
         </div>
-        <div className="h-5 w-16 rounded-full bg-white/[0.06]" />
+        <div className="h-5 w-16 rounded-full bg-muted" />
       </div>
       <div className="flex items-center gap-3 mt-3">
-        <div className="h-5 w-20 rounded-full bg-white/[0.06]" />
-        <div className="h-5 w-24 rounded-full bg-white/[0.06]" />
+        <div className="h-5 w-20 rounded-full bg-muted" />
+        <div className="h-5 w-24 rounded-full bg-muted" />
       </div>
     </div>
   );
@@ -257,7 +257,7 @@ export default function AnalysisPage() {
           Array.from({ length: 3 }).map((_, i) => <StatCardSkeleton key={i} />)
         ) : (
           <>
-            <div className="glass-card p-6 transition-all duration-200 hover:bg-white/[0.06]">
+            <div className="glass-card p-6 transition-all duration-200 hover:bg-muted">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10">
                   <BarChart3 className="h-5 w-5 text-blue-400" />
@@ -267,7 +267,7 @@ export default function AnalysisPage() {
               <p className="text-3xl font-bold tracking-tight">{stats?.total ?? 0}</p>
               <p className="text-sm text-muted-foreground mt-1">Total Analyses</p>
             </div>
-            <div className="glass-card p-6 transition-all duration-200 hover:bg-white/[0.06]">
+            <div className="glass-card p-6 transition-all duration-200 hover:bg-muted">
               <div className="flex items-center justify-between mb-4">
                 <div className={cn(
                   "flex h-10 w-10 items-center justify-center rounded-lg",
@@ -282,7 +282,7 @@ export default function AnalysisPage() {
               <p className="text-3xl font-bold tracking-tight">{stats?.avgRisk ?? "0.0"}</p>
               <p className="text-sm text-muted-foreground mt-1">Average Risk Score</p>
             </div>
-            <div className="glass-card p-6 transition-all duration-200 hover:bg-white/[0.06]">
+            <div className="glass-card p-6 transition-all duration-200 hover:bg-muted">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-500/10">
                   <Sparkles className="h-5 w-5 text-purple-400" />
@@ -303,7 +303,7 @@ export default function AnalysisPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search by contract name..."
-            className="pl-9 border-white/[0.08] bg-white/[0.02]"
+            className="pl-9 border-border bg-muted/50"
             onChange={(e) => debouncedSearch(e.target.value)}
           />
         </div>
@@ -340,7 +340,7 @@ export default function AnalysisPage() {
         </div>
       ) : filteredAnalyses.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/[0.04] mb-4">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted/60 mb-4">
             <Shield className="h-8 w-8 text-muted-foreground/50" />
           </div>
           <h3 className="text-lg font-semibold mb-1">No analyses found</h3>
@@ -368,7 +368,7 @@ export default function AnalysisPage() {
               <Link
                 key={analysis.id}
                 href={`/contracts/${analysis.contractId}`}
-                className="glass-card p-5 transition-all duration-200 hover:bg-white/[0.06] hover:border-white/[0.12] group"
+                className="glass-card p-5 transition-all duration-200 hover:bg-muted hover:border-primary/25 group"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3 min-w-0">
@@ -407,7 +407,7 @@ export default function AnalysisPage() {
 
       {/* New Analysis Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="glass-card border-white/[0.08]">
+        <DialogContent className="glass-card border-border">
           <DialogHeader>
             <DialogTitle>Start New Analysis</DialogTitle>
             <DialogDescription>
@@ -418,7 +418,7 @@ export default function AnalysisPage() {
             <div className="space-y-2">
               <label className="text-sm font-medium">Contract</label>
               <Select value={selectedContract} onValueChange={setSelectedContract}>
-                <SelectTrigger className="border-white/[0.08] bg-white/[0.02]">
+                <SelectTrigger className="border-border bg-muted/50">
                   <SelectValue placeholder="Select a contract..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -445,7 +445,7 @@ export default function AnalysisPage() {
                         "flex items-center gap-2 rounded-lg border p-3 text-sm transition-all",
                         selectedAnalysisType === t.value
                           ? "border-blue-500/50 bg-blue-500/10 text-foreground"
-                          : "border-white/[0.08] bg-white/[0.02] text-muted-foreground hover:bg-white/[0.04]"
+                          : "border-border bg-muted/50 text-muted-foreground hover:bg-muted/60"
                       )}
                     >
                       <Icon className={cn("h-4 w-4", t.color)} />
@@ -461,7 +461,7 @@ export default function AnalysisPage() {
               onClick={handleStartAnalysis}
             >
               {starting ? (
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted border-t-primary" />
               ) : (
                 <Sparkles className="h-4 w-4" />
               )}

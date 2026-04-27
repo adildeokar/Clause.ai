@@ -122,7 +122,7 @@ export default function SettingsPage() {
       onClick={() => handleSave(section)}
     >
       {saving === section ? (
-        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+        <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted border-t-primary" />
       ) : saved === section ? (
         <Check className="h-4 w-4 text-green-400" />
       ) : (
@@ -143,25 +143,25 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="profile" className="space-y-6">
-        <TabsList className="bg-white/[0.04] border border-white/[0.08] p-1 flex-wrap h-auto">
-          <TabsTrigger value="profile" className="gap-2 data-[state=active]:bg-white/[0.08]">
+        <TabsList className="bg-muted/60 border border-border p-1 flex-wrap h-auto">
+          <TabsTrigger value="profile" className="gap-2 data-[state=active]:bg-muted">
             <User className="h-4 w-4" />
             <span className="hidden sm:inline">Profile</span>
           </TabsTrigger>
-          <TabsTrigger value="preferences" className="gap-2 data-[state=active]:bg-white/[0.08]">
+          <TabsTrigger value="preferences" className="gap-2 data-[state=active]:bg-muted">
             <Settings2 className="h-4 w-4" />
             <span className="hidden sm:inline">Preferences</span>
           </TabsTrigger>
-          <TabsTrigger value="risk" className="gap-2 data-[state=active]:bg-white/[0.08]">
+          <TabsTrigger value="risk" className="gap-2 data-[state=active]:bg-muted">
             <Shield className="h-4 w-4" />
             <span className="hidden sm:inline">Risk Profile</span>
           </TabsTrigger>
-          <TabsTrigger value="integrations" className="gap-2 data-[state=active]:bg-white/[0.08]">
+          <TabsTrigger value="integrations" className="gap-2 data-[state=active]:bg-muted">
             <Puzzle className="h-4 w-4" />
             <span className="hidden sm:inline">Integrations</span>
           </TabsTrigger>
           {isAdmin && (
-            <TabsTrigger value="admin" className="gap-2 data-[state=active]:bg-white/[0.08]">
+            <TabsTrigger value="admin" className="gap-2 data-[state=active]:bg-muted">
               <UserCog className="h-4 w-4" />
               <span className="hidden sm:inline">Admin</span>
             </TabsTrigger>
@@ -176,7 +176,7 @@ export default function SettingsPage() {
               <p className="text-sm text-muted-foreground">Update your personal details and jurisdiction preference.</p>
             </div>
 
-            <Separator className="bg-white/[0.06]" />
+            <Separator className="bg-muted" />
 
             <div className="grid gap-6 sm:grid-cols-2">
               <div className="space-y-2">
@@ -185,7 +185,7 @@ export default function SettingsPage() {
                   id="name"
                   value={profileName}
                   onChange={(e) => setProfileName(e.target.value)}
-                  className="border-white/[0.08] bg-white/[0.02]"
+                  className="border-border bg-muted/50"
                 />
               </div>
               <div className="space-y-2">
@@ -197,13 +197,13 @@ export default function SettingsPage() {
                   id="email"
                   value={session?.user?.email ?? ""}
                   readOnly
-                  className="border-white/[0.08] bg-white/[0.02] text-muted-foreground cursor-not-allowed"
+                  className="border-border bg-muted/50 text-muted-foreground cursor-not-allowed"
                 />
               </div>
               <div className="space-y-2">
                 <Label>Jurisdiction Preference</Label>
                 <Select value={profileJurisdiction} onValueChange={setProfileJurisdiction}>
-                  <SelectTrigger className="border-white/[0.08] bg-white/[0.02]">
+                  <SelectTrigger className="border-border bg-muted/50">
                     <Globe className="h-4 w-4 mr-2 text-muted-foreground" />
                     <SelectValue />
                   </SelectTrigger>
@@ -219,7 +219,7 @@ export default function SettingsPage() {
                 <Input
                   value={(session?.user as any)?.role ?? "user"}
                   readOnly
-                  className="border-white/[0.08] bg-white/[0.02] text-muted-foreground cursor-not-allowed capitalize"
+                  className="border-border bg-muted/50 text-muted-foreground cursor-not-allowed capitalize"
                 />
               </div>
             </div>
@@ -238,7 +238,7 @@ export default function SettingsPage() {
               <p className="text-sm text-muted-foreground">Configure your default view and notification settings.</p>
             </div>
 
-            <Separator className="bg-white/[0.06]" />
+            <Separator className="bg-muted" />
 
             <div className="space-y-6">
               <div className="space-y-2">
@@ -247,7 +247,7 @@ export default function SettingsPage() {
                   Default Dashboard View
                 </Label>
                 <Select value={defaultView} onValueChange={setDefaultView}>
-                  <SelectTrigger className="max-w-xs border-white/[0.08] bg-white/[0.02]">
+                  <SelectTrigger className="max-w-xs border-border bg-muted/50">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -263,7 +263,7 @@ export default function SettingsPage() {
                 </p>
               </div>
 
-              <Separator className="bg-white/[0.06]" />
+              <Separator className="bg-muted" />
 
               <div className="space-y-1 mb-4">
                 <Label className="flex items-center gap-2">
@@ -274,28 +274,28 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-4">
-                <div className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
+                <div className="flex items-center justify-between rounded-lg border border-border bg-muted/50 p-4">
                   <div>
                     <p className="text-sm font-medium">Email Notifications</p>
                     <p className="text-xs text-muted-foreground">Receive updates via email</p>
                   </div>
                   <Switch checked={emailNotifications} onCheckedChange={setEmailNotifications} />
                 </div>
-                <div className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
+                <div className="flex items-center justify-between rounded-lg border border-border bg-muted/50 p-4">
                   <div>
                     <p className="text-sm font-medium">Risk Alerts</p>
                     <p className="text-xs text-muted-foreground">Get notified when high-risk clauses are detected</p>
                   </div>
                   <Switch checked={riskAlerts} onCheckedChange={setRiskAlerts} />
                 </div>
-                <div className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
+                <div className="flex items-center justify-between rounded-lg border border-border bg-muted/50 p-4">
                   <div>
                     <p className="text-sm font-medium">Weekly Digest</p>
                     <p className="text-xs text-muted-foreground">Summary of contract activity every Monday</p>
                   </div>
                   <Switch checked={weeklyDigest} onCheckedChange={setWeeklyDigest} />
                 </div>
-                <div className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
+                <div className="flex items-center justify-between rounded-lg border border-border bg-muted/50 p-4">
                   <div>
                     <p className="text-sm font-medium">Analysis Complete</p>
                     <p className="text-xs text-muted-foreground">Notify when contract analysis finishes</p>
@@ -319,7 +319,7 @@ export default function SettingsPage() {
               <p className="text-sm text-muted-foreground">Customize how Clause AI evaluates and flags risks for you.</p>
             </div>
 
-            <Separator className="bg-white/[0.06]" />
+            <Separator className="bg-muted" />
 
             {/* Risk Tolerance */}
             <div className="space-y-4">
@@ -336,7 +336,7 @@ export default function SettingsPage() {
                     step="1"
                     value={riskTolerance}
                     onChange={(e) => setRiskTolerance(Number(e.target.value))}
-                    className="w-full h-2 rounded-full appearance-none cursor-pointer bg-white/[0.08] accent-blue-600 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-400 [&::-webkit-slider-thumb]:shadow-lg"
+                    className="w-full h-2 rounded-full appearance-none cursor-pointer bg-muted accent-blue-600 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-400 [&::-webkit-slider-thumb]:shadow-lg"
                   />
                   <div className="flex justify-between mt-2">
                     {RISK_LEVELS.map((level) => (
@@ -352,7 +352,7 @@ export default function SettingsPage() {
                     ))}
                   </div>
                 </div>
-                <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+                <div className="rounded-lg border border-border bg-muted/50 p-3">
                   <p className="text-sm text-foreground font-medium">
                     {RISK_LEVELS[riskTolerance].label}
                   </p>
@@ -363,7 +363,7 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            <Separator className="bg-white/[0.06]" />
+            <Separator className="bg-muted" />
 
             {/* Preferred Clauses */}
             <div className="space-y-3">
@@ -380,7 +380,7 @@ export default function SettingsPage() {
                       "text-xs px-3 py-1.5 rounded-full border transition-all",
                       selectedClauses.includes(clause)
                         ? "border-blue-500/50 bg-blue-500/10 text-blue-400"
-                        : "border-white/[0.08] bg-white/[0.02] text-muted-foreground hover:bg-white/[0.04]"
+                        : "border-border bg-muted/50 text-muted-foreground hover:bg-muted/60"
                     )}
                   >
                     {clause}
@@ -389,7 +389,7 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            <Separator className="bg-white/[0.06]" />
+            <Separator className="bg-muted" />
 
             {/* Voice Profile */}
             <div className="space-y-2">
@@ -410,7 +410,7 @@ export default function SettingsPage() {
                       "rounded-lg border p-4 text-left transition-all",
                       voiceProfile === voice.value
                         ? "border-blue-500/50 bg-blue-500/10"
-                        : "border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.04]"
+                        : "border-border bg-muted/50 hover:bg-muted/60"
                     )}
                   >
                     <p className={cn(
@@ -439,16 +439,16 @@ export default function SettingsPage() {
               <p className="text-sm text-muted-foreground">Connect Clause AI with your existing tools and workflows.</p>
             </div>
 
-            <Separator className="bg-white/[0.06]" />
+            <Separator className="bg-muted" />
 
             <div className="grid gap-4 sm:grid-cols-2">
               {INTEGRATIONS.map((integration) => (
                 <div
                   key={integration.id}
-                  className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-5 flex items-start justify-between"
+                  className="rounded-lg border border-border bg-muted/50 p-5 flex items-start justify-between"
                 >
                   <div className="flex items-start gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-white/[0.04] text-2xl">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-muted/60 text-2xl">
                       {integration.icon}
                     </div>
                     <div>
@@ -467,7 +467,7 @@ export default function SettingsPage() {
                     variant="outline"
                     size="sm"
                     disabled={integration.comingSoon}
-                    className="shrink-0 border-white/[0.08] text-muted-foreground"
+                    className="shrink-0 border-border text-muted-foreground"
                   >
                     Connect
                   </Button>
@@ -486,10 +486,10 @@ export default function SettingsPage() {
                 <p className="text-sm text-muted-foreground">Add, remove, and manage users in your organization.</p>
               </div>
 
-              <Separator className="bg-white/[0.06]" />
+              <Separator className="bg-muted" />
 
               {/* Add User Form */}
-              <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-5 space-y-4">
+              <div className="rounded-lg border border-border bg-muted/50 p-5 space-y-4">
                 <h4 className="text-sm font-medium">Add New User</h4>
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <div className="flex-1">
@@ -498,11 +498,11 @@ export default function SettingsPage() {
                       type="email"
                       value={newUserEmail}
                       onChange={(e) => setNewUserEmail(e.target.value)}
-                      className="border-white/[0.08] bg-white/[0.02]"
+                      className="border-border bg-muted/50"
                     />
                   </div>
                   <Select value={newUserRole} onValueChange={setNewUserRole}>
-                    <SelectTrigger className="w-[130px] border-white/[0.08] bg-white/[0.02]">
+                    <SelectTrigger className="w-[130px] border-border bg-muted/50">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -530,7 +530,7 @@ export default function SettingsPage() {
                 {managedUsers.map((user) => (
                   <div
                     key={user.id}
-                    className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-white/[0.02] p-4"
+                    className="flex items-center justify-between rounded-lg border border-border bg-muted/50 p-4"
                   >
                     <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500/10">

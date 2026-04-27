@@ -199,12 +199,12 @@ const MOCK_TEMPLATES: Template[] = [
 function TemplateCardSkeleton() {
   return (
     <div className="glass-card p-5 animate-pulse">
-      <div className="h-5 w-40 rounded bg-white/[0.06] mb-3" />
-      <div className="h-3 w-full rounded bg-white/[0.06] mb-2" />
-      <div className="h-3 w-2/3 rounded bg-white/[0.06] mb-4" />
+      <div className="h-5 w-40 rounded bg-muted mb-3" />
+      <div className="h-3 w-full rounded bg-muted mb-2" />
+      <div className="h-3 w-2/3 rounded bg-muted mb-4" />
       <div className="flex gap-2">
-        <div className="h-5 w-16 rounded-full bg-white/[0.06]" />
-        <div className="h-5 w-12 rounded-full bg-white/[0.06]" />
+        <div className="h-5 w-16 rounded-full bg-muted" />
+        <div className="h-5 w-12 rounded-full bg-muted" />
       </div>
     </div>
   );
@@ -346,13 +346,13 @@ export default function TemplatesPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search templates..."
-            className="pl-9 border-white/[0.08] bg-white/[0.02]"
+            className="pl-9 border-border bg-muted/50"
             onChange={(e) => debouncedSearch(e.target.value)}
           />
         </div>
         <div className="flex items-center gap-2">
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-            <SelectTrigger className="w-[180px] border-white/[0.08] bg-white/[0.02]">
+            <SelectTrigger className="w-[180px] border-border bg-muted/50">
               <Filter className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
               <SelectValue placeholder="Category" />
             </SelectTrigger>
@@ -363,7 +363,7 @@ export default function TemplatesPage() {
             </SelectContent>
           </Select>
           <Select value={jurisdictionFilter} onValueChange={setJurisdictionFilter}>
-            <SelectTrigger className="w-[150px] border-white/[0.08] bg-white/[0.02]">
+            <SelectTrigger className="w-[150px] border-border bg-muted/50">
               <Globe className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
               <SelectValue placeholder="Jurisdiction" />
             </SelectTrigger>
@@ -387,7 +387,7 @@ export default function TemplatesPage() {
         </div>
       ) : filteredTemplates.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/[0.04] mb-4">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted/60 mb-4">
             <BookTemplate className="h-8 w-8 text-muted-foreground/50" />
           </div>
           <h3 className="text-lg font-semibold mb-1">No templates found</h3>
@@ -401,7 +401,7 @@ export default function TemplatesPage() {
             <button
               key={template.id}
               onClick={() => openTemplate(template)}
-              className="glass-card p-5 text-left transition-all duration-200 hover:bg-white/[0.06] hover:border-white/[0.12] group"
+              className="glass-card p-5 text-left transition-all duration-200 hover:bg-muted hover:border-primary/25 group"
             >
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
@@ -448,7 +448,7 @@ export default function TemplatesPage() {
 
       {/* Template Detail Dialog */}
       <Dialog open={!!selectedTemplate} onOpenChange={(open) => !open && setSelectedTemplate(null)}>
-        <DialogContent className="glass-card border-white/[0.08] max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
+        <DialogContent className="glass-card border-border max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>{selectedTemplate?.name}</DialogTitle>
             <DialogDescription>{selectedTemplate?.description}</DialogDescription>
@@ -463,7 +463,7 @@ export default function TemplatesPage() {
                     <Eye className="h-4 w-4 text-muted-foreground" />
                     Template Preview
                   </h4>
-                  <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
+                  <div className="rounded-lg border border-border bg-muted/50 p-4">
                     <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono leading-relaxed">
                       {selectedTemplate?.content}
                     </pre>
@@ -484,7 +484,7 @@ export default function TemplatesPage() {
                       <Input
                         type={field.type === "date" ? "date" : field.type === "number" ? "number" : "text"}
                         placeholder={field.placeholder}
-                        className="border-white/[0.08] bg-white/[0.02]"
+                        className="border-border bg-muted/50"
                         value={fieldValues[field.name] ?? ""}
                         onChange={(e) =>
                           setFieldValues((prev) => ({ ...prev, [field.name]: e.target.value }))
@@ -512,12 +512,12 @@ export default function TemplatesPage() {
             </div>
           </ScrollArea>
 
-          <div className="flex gap-3 pt-4 border-t border-white/[0.06]">
+          <div className="flex gap-3 pt-4 border-t border-border">
             {generatedContract ? (
               <>
                 <Button
                   variant="outline"
-                  className="flex-1 border-white/[0.08]"
+                  className="flex-1 border-border"
                   onClick={() => setGeneratedContract(null)}
                 >
                   Edit Fields
@@ -538,7 +538,7 @@ export default function TemplatesPage() {
                 onClick={handleGenerate}
               >
                 {generating ? (
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted border-t-primary" />
                 ) : (
                   <Sparkles className="h-4 w-4" />
                 )}

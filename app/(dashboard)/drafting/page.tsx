@@ -203,7 +203,7 @@ export default function DraftingPage() {
                   <button
                     key={sample.label}
                     onClick={() => loadSampleClause(sample.text)}
-                    className="text-xs px-2.5 py-1.5 rounded-md border border-white/[0.08] bg-white/[0.02] text-muted-foreground hover:bg-white/[0.06] hover:text-foreground transition-colors"
+                    className="text-xs px-2.5 py-1.5 rounded-md border border-border bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                   >
                     {sample.label}
                   </button>
@@ -213,7 +213,7 @@ export default function DraftingPage() {
 
             <Textarea
               placeholder="Paste or type a contract clause here..."
-              className="min-h-[200px] border-white/[0.08] bg-white/[0.02] resize-none"
+              className="min-h-[200px] border-border bg-muted/50 resize-none"
               value={clauseText}
               onChange={(e) => setClauseText(e.target.value)}
             />
@@ -230,7 +230,7 @@ export default function DraftingPage() {
               <div className="space-y-2">
                 <label className="text-xs text-muted-foreground">Style</label>
                 <Select value={style} onValueChange={(v) => setStyle(v as DraftStyle)}>
-                  <SelectTrigger className="border-white/[0.08] bg-white/[0.02]">
+                  <SelectTrigger className="border-border bg-muted/50">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -251,7 +251,7 @@ export default function DraftingPage() {
               <div className="space-y-2">
                 <label className="text-xs text-muted-foreground">Jurisdiction</label>
                 <Select value={jurisdiction} onValueChange={(v) => setJurisdiction(v as Jurisdiction)}>
-                  <SelectTrigger className="border-white/[0.08] bg-white/[0.02]">
+                  <SelectTrigger className="border-border bg-muted/50">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -269,7 +269,7 @@ export default function DraftingPage() {
               onClick={handleRewrite}
             >
               {rewriting ? (
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted border-t-primary" />
               ) : (
                 <Sparkles className="h-4 w-4" />
               )}
@@ -353,7 +353,7 @@ export default function DraftingPage() {
                 </Button>
                 <Button
                   variant="outline"
-                  className="flex-1 gap-2 border-white/[0.08]"
+                  className="flex-1 gap-2 border-border"
                   onClick={handleTryAnother}
                   disabled={rewriting}
                 >
@@ -402,7 +402,7 @@ export default function DraftingPage() {
               {history.map((item) => (
                 <div
                   key={item.id}
-                  className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4"
+                  className="rounded-lg border border-border bg-muted/50 p-4"
                 >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">

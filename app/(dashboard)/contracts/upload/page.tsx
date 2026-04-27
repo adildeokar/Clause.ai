@@ -72,7 +72,7 @@ function getFileTypeInfo(file: File) {
   if (ext === "pdf") return { label: "PDF", color: "text-red-400 bg-red-500/10" };
   if (ext === "docx" || ext === "doc") return { label: ext.toUpperCase(), color: "text-blue-400 bg-blue-500/10" };
   if (ext === "txt") return { label: "TXT", color: "text-green-400 bg-green-500/10" };
-  return { label: ext?.toUpperCase() ?? "FILE", color: "text-muted-foreground bg-white/[0.06]" };
+  return { label: ext?.toUpperCase() ?? "FILE", color: "text-muted-foreground bg-muted" };
 }
 
 export default function UploadPage() {
@@ -226,7 +226,7 @@ export default function UploadPage() {
               ? "border-blue-500 bg-blue-500/5"
               : file
                 ? "border-green-500/30 bg-green-500/5"
-                : "border-white/[0.1] hover:border-white/[0.2] bg-white/[0.02]"
+                : "border-border hover:border-primary/40 bg-muted/50"
           }`}
           onDragEnter={handleDrag}
           onDragLeave={handleDrag}
@@ -293,7 +293,7 @@ export default function UploadPage() {
                 type="button"
                 variant="outline"
                 size="sm"
-                className="border-white/[0.08]"
+                className="border-border"
                 onClick={() => fileInputRef.current?.click()}
               >
                 Browse Files
@@ -316,7 +316,7 @@ export default function UploadPage() {
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
               Text Preview
             </h3>
-            <div className="max-h-48 overflow-y-auto rounded-lg bg-white/[0.02] p-3">
+            <div className="max-h-48 overflow-y-auto rounded-lg bg-muted/50 p-3">
               <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">
                 {preview}
                 {preview.length >= 2000 && (
@@ -338,7 +338,7 @@ export default function UploadPage() {
               placeholder="e.g. Software License Agreement — Acme Corp"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="border-white/[0.08] bg-white/[0.02]"
+              className="border-border bg-muted/50"
               disabled={uploading}
             />
           </div>
@@ -351,7 +351,7 @@ export default function UploadPage() {
                 onValueChange={setJurisdiction}
                 disabled={uploading}
               >
-                <SelectTrigger className="border-white/[0.08] bg-white/[0.02]">
+                <SelectTrigger className="border-border bg-muted/50">
                   <SelectValue placeholder="Select jurisdiction" />
                 </SelectTrigger>
                 <SelectContent>
@@ -371,7 +371,7 @@ export default function UploadPage() {
                 onValueChange={setContractType}
                 disabled={uploading}
               >
-                <SelectTrigger className="border-white/[0.08] bg-white/[0.02]">
+                <SelectTrigger className="border-border bg-muted/50">
                   <SelectValue placeholder="Select type (optional)" />
                 </SelectTrigger>
                 <SelectContent>
@@ -408,7 +408,7 @@ export default function UploadPage() {
             </div>
             <Progress
               value={progress}
-              className="h-2 bg-white/[0.06]"
+              className="h-2 bg-muted"
             />
           </div>
         )}

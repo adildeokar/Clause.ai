@@ -27,6 +27,7 @@ import {
   Legend,
 } from "recharts";
 
+import { useChartTheme } from "@/hooks/use-chart-theme";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -124,13 +125,14 @@ const PieTooltip = ({ active, payload }: any) => {
 function ChartSkeleton() {
   return (
     <div className="glass-card p-6 animate-pulse">
-      <div className="h-5 w-40 rounded bg-white/[0.06] mb-6" />
-      <div className="h-[280px] rounded bg-white/[0.06]" />
+      <div className="h-5 w-40 rounded bg-muted mb-6" />
+      <div className="h-[280px] rounded bg-muted" />
     </div>
   );
 }
 
 export default function AnalyticsPage() {
+  const { gridStroke, tickFill, axisLabelFill, legendColor } = useChartTheme();
   const [dateRange, setDateRange] = useState<DateRange>("30d");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -199,18 +201,18 @@ export default function AnalyticsPage() {
             </div>
             <ResponsiveContainer width="100%" height={280}>
               <LineChart data={RISK_TREND_DATA}>
-                <CartesianGrid stroke="rgba(255,255,255,0.04)" strokeDasharray="3 3" />
+                <CartesianGrid stroke={gridStroke} strokeDasharray="3 3" />
                 <XAxis
                   dataKey="date"
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: "hsl(0 0% 64%)", fontSize: 12 }}
+                  tick={{ fill: tickFill, fontSize: 12 }}
                 />
                 <YAxis
                   domain={[0, 10]}
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: "hsl(0 0% 64%)", fontSize: 12 }}
+                  tick={{ fill: tickFill, fontSize: 12 }}
                 />
                 <RechartsTooltip content={<ChartTooltip />} />
                 <Line
@@ -284,21 +286,21 @@ export default function AnalyticsPage() {
             </div>
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={JURISDICTION_DATA} barSize={32}>
-                <CartesianGrid stroke="rgba(255,255,255,0.04)" strokeDasharray="3 3" />
+                <CartesianGrid stroke={gridStroke} strokeDasharray="3 3" />
                 <XAxis
                   dataKey="jurisdiction"
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: "hsl(0 0% 64%)", fontSize: 12 }}
+                  tick={{ fill: tickFill, fontSize: 12 }}
                 />
                 <YAxis
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: "hsl(0 0% 64%)", fontSize: 12 }}
+                  tick={{ fill: tickFill, fontSize: 12 }}
                 />
                 <RechartsTooltip content={<ChartTooltip />} />
                 <Legend
-                  wrapperStyle={{ fontSize: 12, color: "hsl(0 0% 64%)" }}
+                  wrapperStyle={{ fontSize: 12, color: legendColor }}
                   iconType="circle"
                   iconSize={8}
                 />
@@ -321,19 +323,19 @@ export default function AnalyticsPage() {
             </div>
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={ETHICS_DISTRIBUTION} barSize={48}>
-                <CartesianGrid stroke="rgba(255,255,255,0.04)" strokeDasharray="3 3" />
+                <CartesianGrid stroke={gridStroke} strokeDasharray="3 3" />
                 <XAxis
                   dataKey="range"
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: "hsl(0 0% 64%)", fontSize: 12 }}
-                  label={{ value: "Score Range", position: "insideBottom", offset: -5, style: { fill: "hsl(0 0% 50%)", fontSize: 11 } }}
+                  tick={{ fill: tickFill, fontSize: 12 }}
+                  label={{ value: "Score Range", position: "insideBottom", offset: -5, style: { fill: axisLabelFill, fontSize: 11 } }}
                 />
                 <YAxis
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: "hsl(0 0% 64%)", fontSize: 12 }}
-                  label={{ value: "Contracts", angle: -90, position: "insideLeft", style: { fill: "hsl(0 0% 50%)", fontSize: 11 } }}
+                  tick={{ fill: tickFill, fontSize: 12 }}
+                  label={{ value: "Contracts", angle: -90, position: "insideLeft", style: { fill: axisLabelFill, fontSize: 11 } }}
                 />
                 <RechartsTooltip content={<ChartTooltip />} />
                 <Bar dataKey="count" name="Contracts" radius={[6, 6, 0, 0]}>
@@ -360,7 +362,7 @@ export default function AnalyticsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-white/[0.06]">
+                <tr className="border-b border-border">
                   <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Clause</th>
                   <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Category</th>
                   <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Contract</th>
@@ -372,7 +374,7 @@ export default function AnalyticsPage() {
                 {TOP_RISK_CLAUSES.map((item, idx) => (
                   <tr
                     key={idx}
-                    className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors"
+                    className="border-b border-border hover:bg-muted/50 transition-colors"
                   >
                     <td className="py-3 px-4 text-foreground max-w-[280px] truncate">{item.clause}</td>
                     <td className="py-3 px-4">

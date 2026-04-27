@@ -20,6 +20,7 @@ import {
   Sparkles,
 } from "lucide-react";
 
+import { useChartTheme } from "@/hooks/use-chart-theme";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -103,6 +104,7 @@ function CircularScore({
   color: string;
   size?: number;
 }) {
+  const { trackStroke } = useChartTheme();
   const radius = (size - 8) / 2;
   const circumference = 2 * Math.PI * radius;
   const progress = score !== null ? (score / 10) * circumference : 0;
@@ -116,7 +118,7 @@ function CircularScore({
             cy={size / 2}
             r={radius}
             fill="none"
-            stroke="rgba(255,255,255,0.06)"
+            stroke={trackStroke}
             strokeWidth={4}
           />
           <circle
@@ -185,10 +187,10 @@ function ClauseCard({
   }
 
   return (
-    <div className="glass-card overflow-hidden transition-all duration-200 hover:border-white/[0.12]">
+    <div className="glass-card overflow-hidden transition-all duration-200 hover:border-primary/25">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center justify-between px-5 py-4 text-left hover:bg-white/[0.02] transition-colors"
+        className="flex w-full items-center justify-between px-5 py-4 text-left hover:bg-muted/50 transition-colors"
       >
         <div className="flex items-center gap-3 min-w-0">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-xs font-bold text-blue-400">
@@ -246,9 +248,9 @@ function ClauseCard({
       </button>
 
       {expanded && (
-        <div className="border-t border-white/[0.06] px-5 py-4 space-y-4">
+        <div className="border-t border-border px-5 py-4 space-y-4">
           {/* Clause Text */}
-          <div className="rounded-lg bg-white/[0.02] p-4">
+          <div className="rounded-lg bg-muted/50 p-4">
             <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
               {clause.clauseText}
             </p>
@@ -354,7 +356,7 @@ function ClauseCard({
 
           {/* Action Result */}
           {actionResult && (
-            <div className="rounded-lg bg-white/[0.02] p-4 border border-white/[0.06]">
+            <div className="rounded-lg bg-muted/50 p-4 border border-border">
               <h4 className="text-xs font-semibold uppercase tracking-wider mb-2 text-blue-400">
                 {actionResult.action === "stress-test"
                   ? "Stress Test Result"
@@ -377,7 +379,7 @@ function ClauseCard({
             <Button
               variant="outline"
               size="sm"
-              className="gap-1.5 border-white/[0.08] text-xs"
+              className="gap-1.5 border-border text-xs"
               disabled={actionLoading !== null}
               onClick={() => handleAction("stress-test")}
             >
@@ -391,7 +393,7 @@ function ClauseCard({
             <Button
               variant="outline"
               size="sm"
-              className="gap-1.5 border-white/[0.08] text-xs"
+              className="gap-1.5 border-border text-xs"
               disabled={actionLoading !== null}
               onClick={() => handleAction("rewrite")}
             >
@@ -405,7 +407,7 @@ function ClauseCard({
             <Button
               variant="outline"
               size="sm"
-              className="gap-1.5 border-white/[0.08] text-xs"
+              className="gap-1.5 border-border text-xs"
               disabled={actionLoading !== null}
               onClick={() => handleAction("benchmark")}
             >
@@ -419,7 +421,7 @@ function ClauseCard({
           </div>
 
           {/* Meta info */}
-          <div className="flex items-center gap-4 text-xs text-muted-foreground pt-2 border-t border-white/[0.06]">
+          <div className="flex items-center gap-4 text-xs text-muted-foreground pt-2 border-t border-border">
             {clause._count.versions > 0 && (
               <span>{clause._count.versions} version(s)</span>
             )}
@@ -436,17 +438,17 @@ function ClauseCard({
 function PageSkeleton() {
   return (
     <div className="space-y-6 animate-pulse">
-      <div className="h-8 w-64 rounded bg-white/[0.06]" />
+      <div className="h-8 w-64 rounded bg-muted" />
       <div className="flex gap-4">
-        <div className="h-5 w-20 rounded-full bg-white/[0.06]" />
-        <div className="h-5 w-24 rounded-full bg-white/[0.06]" />
-        <div className="h-5 w-20 rounded-full bg-white/[0.06]" />
+        <div className="h-5 w-20 rounded-full bg-muted" />
+        <div className="h-5 w-24 rounded-full bg-muted" />
+        <div className="h-5 w-20 rounded-full bg-muted" />
       </div>
       <div className="grid gap-4 sm:grid-cols-3">
         {[1, 2, 3].map((i) => (
           <div key={i} className="glass-card p-6">
-            <div className="h-20 w-20 rounded-full bg-white/[0.06] mx-auto mb-3" />
-            <div className="h-4 w-24 rounded bg-white/[0.06] mx-auto" />
+            <div className="h-20 w-20 rounded-full bg-muted mx-auto mb-3" />
+            <div className="h-4 w-24 rounded bg-muted mx-auto" />
           </div>
         ))}
       </div>
@@ -607,7 +609,7 @@ export default function ContractDetailPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="clauses">
-        <TabsList className="bg-white/[0.04] border border-white/[0.06]">
+        <TabsList className="bg-muted/60 border border-border">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="clauses">
             Clauses ({contract.clauses.length})
@@ -678,7 +680,7 @@ export default function ContractDetailPage() {
                       <div className="flex-1">
                         <Progress
                           value={(clause.riskScore! / 10) * 100}
-                          className="h-2 bg-white/[0.06]"
+                          className="h-2 bg-muted"
                         />
                       </div>
                       <Badge
@@ -777,7 +779,7 @@ export default function ContractDetailPage() {
                         {analysis.resultJson.loopholes}
                       </p>
                     ) : (
-                      <pre className="text-xs text-muted-foreground whitespace-pre-wrap bg-white/[0.02] rounded-lg p-3 overflow-x-auto">
+                      <pre className="text-xs text-muted-foreground whitespace-pre-wrap bg-muted/50 rounded-lg p-3 overflow-x-auto">
                         {JSON.stringify(
                           analysis.resultJson.loopholes,
                           null,
@@ -799,7 +801,7 @@ export default function ContractDetailPage() {
                         {analysis.resultJson.fairness}
                       </p>
                     ) : (
-                      <pre className="text-xs text-muted-foreground whitespace-pre-wrap bg-white/[0.02] rounded-lg p-3 overflow-x-auto">
+                      <pre className="text-xs text-muted-foreground whitespace-pre-wrap bg-muted/50 rounded-lg p-3 overflow-x-auto">
                         {JSON.stringify(
                           analysis.resultJson.fairness,
                           null,
@@ -823,7 +825,7 @@ export default function ContractDetailPage() {
                           .map((cr: any, i: number) => (
                             <div
                               key={i}
-                              className="flex items-center justify-between rounded-lg bg-white/[0.02] px-3 py-2"
+                              className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2"
                             >
                               <span className="text-xs text-muted-foreground truncate">
                                 Clause {i + 1}

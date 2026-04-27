@@ -25,6 +25,7 @@ import {
   Cell,
 } from "recharts";
 
+import { useChartTheme } from "@/hooks/use-chart-theme";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -94,11 +95,11 @@ function StatCardSkeleton() {
   return (
     <div className="glass-card p-6 animate-pulse">
       <div className="flex items-center justify-between mb-4">
-        <div className="h-10 w-10 rounded-lg bg-white/[0.06]" />
-        <div className="h-5 w-16 rounded bg-white/[0.06]" />
+        <div className="h-10 w-10 rounded-lg bg-muted" />
+        <div className="h-5 w-16 rounded bg-muted" />
       </div>
-      <div className="h-8 w-20 rounded bg-white/[0.06] mb-2" />
-      <div className="h-4 w-28 rounded bg-white/[0.06]" />
+      <div className="h-8 w-20 rounded bg-muted mb-2" />
+      <div className="h-4 w-28 rounded bg-muted" />
     </div>
   );
 }
@@ -106,8 +107,8 @@ function StatCardSkeleton() {
 function ChartSkeleton() {
   return (
     <div className="glass-card p-6 animate-pulse">
-      <div className="h-5 w-40 rounded bg-white/[0.06] mb-6" />
-      <div className="h-[260px] rounded bg-white/[0.06]" />
+      <div className="h-5 w-40 rounded bg-muted mb-6" />
+      <div className="h-[260px] rounded bg-muted" />
     </div>
   );
 }
@@ -125,6 +126,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 export default function DashboardPage() {
+  const { tickFill, cursorFill } = useChartTheme();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -252,7 +254,7 @@ export default function DashboardPage() {
           : statCards.map((card) => {
               const Icon = card.icon;
               return (
-                <div key={card.label} className="glass-card p-6 transition-all duration-200 hover:bg-white/[0.06]">
+                <div key={card.label} className="glass-card p-6 transition-all duration-200 hover:bg-muted">
                   <div className="flex items-center justify-between mb-4">
                     <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${card.bg}`}>
                       <Icon className={`h-5 w-5 ${card.accent}`} />
@@ -295,17 +297,17 @@ export default function DashboardPage() {
                   dataKey="name"
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: "hsl(0 0% 64%)", fontSize: 12 }}
+                  tick={{ fill: tickFill, fontSize: 12 }}
                 />
                 <YAxis
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: "hsl(0 0% 64%)", fontSize: 12 }}
+                  tick={{ fill: tickFill, fontSize: 12 }}
                   allowDecimals={false}
                 />
                 <RechartsTooltip
                   content={<CustomTooltip />}
-                  cursor={{ fill: "rgba(255,255,255,0.04)" }}
+                  cursor={{ fill: cursorFill }}
                 />
                 <Bar dataKey="value" radius={[6, 6, 0, 0]}>
                   {riskDistData.map((entry, idx) => (
@@ -351,7 +353,7 @@ export default function DashboardPage() {
                   <Link
                     key={contract.id}
                     href={`/contracts/${contract.id}`}
-                    className="flex items-center justify-between rounded-lg px-3 py-3 transition-colors hover:bg-white/[0.04]"
+                    className="flex items-center justify-between rounded-lg px-3 py-3 transition-colors hover:bg-muted/60"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/10">
@@ -409,13 +411,13 @@ export default function DashboardPage() {
                 dataKey="month"
                 axisLine={false}
                 tickLine={false}
-                tick={{ fill: "hsl(0 0% 64%)", fontSize: 12 }}
+                tick={{ fill: tickFill, fontSize: 12 }}
               />
               <YAxis
                 domain={[0, 10]}
                 axisLine={false}
                 tickLine={false}
-                tick={{ fill: "hsl(0 0% 64%)", fontSize: 12 }}
+                tick={{ fill: tickFill, fontSize: 12 }}
               />
               <RechartsTooltip content={<CustomTooltip />} />
               <Area

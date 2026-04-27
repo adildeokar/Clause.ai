@@ -67,7 +67,7 @@ function getFileIcon(fileType: string) {
     doc: "text-blue-400 bg-blue-500/10",
     txt: "text-green-400 bg-green-500/10",
   };
-  return colors[fileType.toLowerCase()] ?? "text-muted-foreground bg-white/[0.06]";
+  return colors[fileType.toLowerCase()] ?? "text-muted-foreground bg-muted";
 }
 
 function ContractCardSkeleton() {
@@ -75,17 +75,17 @@ function ContractCardSkeleton() {
     <div className="glass-card p-5 animate-pulse">
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-white/[0.06]" />
+          <div className="h-10 w-10 rounded-lg bg-muted" />
           <div>
-            <div className="h-4 w-40 rounded bg-white/[0.06] mb-2" />
-            <div className="h-3 w-24 rounded bg-white/[0.06]" />
+            <div className="h-4 w-40 rounded bg-muted mb-2" />
+            <div className="h-3 w-24 rounded bg-muted" />
           </div>
         </div>
-        <div className="h-5 w-16 rounded-full bg-white/[0.06]" />
+        <div className="h-5 w-16 rounded-full bg-muted" />
       </div>
       <div className="flex items-center gap-3 mt-4">
-        <div className="h-5 w-20 rounded-full bg-white/[0.06]" />
-        <div className="h-5 w-24 rounded-full bg-white/[0.06]" />
+        <div className="h-5 w-20 rounded-full bg-muted" />
+        <div className="h-5 w-24 rounded-full bg-muted" />
       </div>
     </div>
   );
@@ -173,7 +173,7 @@ export default function ContractsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search contracts..."
-            className="pl-9 border-white/[0.08] bg-white/[0.02]"
+            className="pl-9 border-border bg-muted/50"
             onChange={(e) => debouncedSearch(e.target.value)}
           />
         </div>
@@ -206,7 +206,7 @@ export default function ContractsPage() {
         </div>
       ) : contracts.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/[0.04] mb-4">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted/60 mb-4">
             <FileText className="h-8 w-8 text-muted-foreground/50" />
           </div>
           <h3 className="text-lg font-semibold mb-1">No contracts found</h3>
@@ -230,7 +230,7 @@ export default function ContractsPage() {
             <Link
               key={contract.id}
               href={`/contracts/${contract.id}`}
-              className="glass-card p-5 transition-all duration-200 hover:bg-white/[0.06] hover:border-white/[0.12] group"
+              className="glass-card p-5 transition-all duration-200 hover:bg-muted hover:border-primary/25 group"
             >
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3 min-w-0">

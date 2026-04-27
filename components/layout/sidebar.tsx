@@ -43,12 +43,12 @@ export function Sidebar() {
   return (
     <aside
         className={cn(
-          "fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-white/[0.06] bg-white/[0.02] backdrop-blur-xl transition-all duration-300 ease-in-out",
+          "fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-border bg-background/90 backdrop-blur-xl transition-all duration-300 ease-in-out dark:bg-muted/50",
           collapsed ? "w-[64px]" : "w-[240px]"
         )}
       >
         {/* Logo */}
-        <div className="flex h-16 shrink-0 items-center border-b border-white/[0.06] px-3">
+        <div className="flex h-16 shrink-0 items-center border-b border-border px-3">
           <Link
             href="/dashboard"
             className={cn(
@@ -56,7 +56,7 @@ export function Sidebar() {
               collapsed && "w-full justify-center"
             )}
           >
-            <Shield className="h-6 w-6 shrink-0 text-blue-400" />
+            <Shield className="h-6 w-6 shrink-0 text-primary" />
             {!collapsed && (
               <span className="truncate bg-gradient-to-r from-blue-400 via-purple-400 to-cyan-400 bg-clip-text text-lg font-semibold text-transparent">
                 Clause AI
@@ -79,8 +79,8 @@ export function Sidebar() {
                     className={cn(
                       "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
                       isActive
-                        ? "bg-blue-500/10 text-blue-400"
-                        : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:bg-accent/70 hover:text-foreground",
                       collapsed && "justify-center px-2"
                     )}
                   >
@@ -97,14 +97,14 @@ export function Sidebar() {
         </nav>
 
         {/* Collapse toggle & Sign out */}
-        <div className="flex flex-col gap-1 border-t border-white/[0.06] p-3">
+        <div className="flex flex-col gap-1 border-t border-border p-3">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
                 className={cn(
-                  "h-9 w-9 shrink-0 text-muted-foreground hover:bg-white/[0.06] hover:text-foreground",
+                  "h-9 w-9 shrink-0 text-muted-foreground hover:bg-accent hover:text-foreground",
                   collapsed ? "mx-auto" : "self-start"
                 )}
                 onClick={toggle}
@@ -126,7 +126,7 @@ export function Sidebar() {
               <Button
                 variant="ghost"
                 className={cn(
-                  "w-full justify-start gap-3 text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
+                  "w-full justify-start gap-3 text-muted-foreground hover:bg-accent/70 hover:text-foreground",
                   collapsed && "justify-center px-2"
                 )}
                 onClick={() => signOut()}
