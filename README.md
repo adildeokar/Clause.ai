@@ -1,4 +1,4 @@
-# Clause AI — Contract Intelligence Platform
+# Clause AI — Contract Intelligence Platform DevKnight
 
 AI-powered contract analysis, loophole detection, fairness assessment, and legal drafting platform.
 
