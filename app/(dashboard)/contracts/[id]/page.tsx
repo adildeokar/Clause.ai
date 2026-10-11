@@ -25,6 +25,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
+import {
+  formatScore,
+  getRiskLevel,
+  getStrengthLevel,
+  type RiskLevel,
+} from "@/lib/utils";
 
 interface Clause {
   id: string;
@@ -69,28 +75,31 @@ interface Contract {
   analyses: Analysis[];
 }
 
+const LEVEL_COLORS: Record<RiskLevel, string> = {
+  low: "#22c55e",
+  medium: "#eab308",
+  high: "#f97316",
+  critical: "#ef4444",
+};
+
 function getRiskVariant(score: number | null) {
   if (score === null) return "secondary" as const;
-  if (score < 3) return "low" as const;
-  if (score < 5) return "medium" as const;
-  if (score < 7) return "high" as const;
-  return "critical" as const;
+  return getRiskLevel(score);
+}
+
+function getStrengthVariant(score: number | null) {
+  if (score === null) return "secondary" as const;
+  return getStrengthLevel(score);
 }
 
 function getScoreColor(score: number | null) {
   if (score === null) return "#6b7280";
-  if (score < 3) return "#22c55e";
-  if (score < 5) return "#eab308";
-  if (score < 7) return "#f97316";
-  return "#ef4444";
+  return LEVEL_COLORS[getRiskLevel(score)];
 }
 
 function getStrengthColor(score: number | null) {
   if (score === null) return "#6b7280";
-  if (score >= 7) return "#22c55e";
-  if (score >= 5) return "#eab308";
-  if (score >= 3) return "#f97316";
-  return "#ef4444";
+  return LEVEL_COLORS[getStrengthLevel(score)];
 }
 
 function CircularScore({
@@ -107,7 +116,10 @@ function CircularScore({
   const { trackStroke } = useChartTheme();
   const radius = (size - 8) / 2;
   const circumference = 2 * Math.PI * radius;
-  const progress = score !== null ? (score / 10) * circumference : 0;
+  const progress =
+    score !== null
+      ? (Math.min(100, Math.max(0, score)) / 100) * circumference
+      : 0;
 
   return (
     <div className="flex flex-col items-center gap-2">
@@ -138,7 +150,7 @@ function CircularScore({
           className="absolute inset-0 flex items-center justify-center text-lg font-bold"
           style={{ color }}
         >
-          {score !== null ? score.toFixed(1) : "—"}
+          {score !== null ? formatScore(score) : "—"}
         </span>
       </div>
       <span className="text-xs text-muted-foreground">{label}</span>
@@ -175,6 +187,9 @@ function ClauseCard({
     try {
       const res = await fetch(`/api/clauses/${clause.id}/${action}`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // The rewrite endpoint requires a style; the others ignore the body.
+        body: JSON.stringify(action === "rewrite" ? { style: "plain_language" } : {}),
       });
       if (!res.ok) throw new Error("Action failed");
       const data = await res.json();
@@ -193,7 +208,7 @@ function ClauseCard({
         className="flex w-full items-center justify-between px-5 py-4 text-left hover:bg-muted/50 transition-colors"
       >
         <div className="flex items-center gap-3 min-w-0">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-xs font-bold text-blue-400">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#E5F0EB] text-xs font-bold text-[#006A3B]">
             {clause.clauseNumber}
           </span>
           <div className="min-w-0">
@@ -212,7 +227,7 @@ function ClauseCard({
             <div className="hidden sm:flex items-center gap-2">
               {clause.riskScore !== null && (
                 <Badge variant={getRiskVariant(clause.riskScore)}>
-                  Risk: {clause.riskScore.toFixed(1)}
+                  Risk: {formatScore(clause.riskScore)}
                 </Badge>
               )}
               {clause.biasScore !== null && (
@@ -220,21 +235,15 @@ function ClauseCard({
                   variant={getRiskVariant(clause.biasScore)}
                   className="hidden md:inline-flex"
                 >
-                  Bias: {clause.biasScore.toFixed(1)}
+                  Bias: {formatScore(clause.biasScore)}
                 </Badge>
               )}
               {clause.strengthScore !== null && (
                 <Badge
-                  variant={
-                    clause.strengthScore >= 7
-                      ? "low"
-                      : clause.strengthScore >= 4
-                        ? "medium"
-                        : "critical"
-                  }
+                  variant={getStrengthVariant(clause.strengthScore)}
                   className="hidden lg:inline-flex"
                 >
-                  Strength: {clause.strengthScore.toFixed(1)}
+                  Strength: {formatScore(clause.strengthScore)}
                 </Badge>
               )}
             </div>
@@ -261,25 +270,19 @@ function ClauseCard({
             <div className="flex flex-wrap gap-2 sm:hidden">
               {clause.riskScore !== null && (
                 <Badge variant={getRiskVariant(clause.riskScore)}>
-                  Risk: {clause.riskScore.toFixed(1)}
+                  Risk: {formatScore(clause.riskScore)}
                 </Badge>
               )}
               {clause.biasScore !== null && (
                 <Badge variant={getRiskVariant(clause.biasScore)}>
-                  Bias: {clause.biasScore.toFixed(1)}
+                  Bias: {formatScore(clause.biasScore)}
                 </Badge>
               )}
               {clause.strengthScore !== null && (
                 <Badge
-                  variant={
-                    clause.strengthScore >= 7
-                      ? "low"
-                      : clause.strengthScore >= 4
-                        ? "medium"
-                        : "critical"
-                  }
+                  variant={getStrengthVariant(clause.strengthScore)}
                 >
-                  Strength: {clause.strengthScore.toFixed(1)}
+                  Strength: {formatScore(clause.strengthScore)}
                 </Badge>
               )}
             </div>
@@ -343,7 +346,7 @@ function ClauseCard({
               )}
               {analysis.explanation && (
                 <div>
-                  <h4 className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-2">
+                  <h4 className="text-xs font-semibold text-[#006A3B] uppercase tracking-wider mb-2">
                     Explanation
                   </h4>
                   <p className="text-sm text-muted-foreground">
@@ -357,7 +360,7 @@ function ClauseCard({
           {/* Action Result */}
           {actionResult && (
             <div className="rounded-lg bg-muted/50 p-4 border border-border">
-              <h4 className="text-xs font-semibold uppercase tracking-wider mb-2 text-blue-400">
+              <h4 className="text-xs font-semibold uppercase tracking-wider mb-2 text-[#006A3B]">
                 {actionResult.action === "stress-test"
                   ? "Stress Test Result"
                   : actionResult.action === "rewrite"
@@ -513,7 +516,7 @@ export default function ContractDetailPage() {
           {error || "Contract not found"}
         </p>
         <Button onClick={() => router.push("/contracts")} variant="outline">
-          Back to Contracts
+          Back to Repository
         </Button>
       </div>
     );
@@ -527,17 +530,17 @@ export default function ContractDetailPage() {
       <div>
         <Link
           href="/contracts"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
+          className="mb-4 inline-flex items-center gap-1 text-sm text-[#868686] transition-colors hover:text-[#006A3B]"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to Contracts
+          Back to Repository
         </Link>
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight">
+            <h1 className="text-[32px] font-medium leading-tight tracking-[-0.08px] text-black">
               {contract.title}
-            </h2>
+            </h1>
             <div className="flex flex-wrap items-center gap-2 mt-2">
               <Badge variant="outline">{contract.jurisdiction}</Badge>
               {contract.contractType && (
@@ -561,8 +564,8 @@ export default function ContractDetailPage() {
             </div>
           </div>
           <Button
-            className="gap-2 bg-blue-600 hover:bg-blue-700 shrink-0"
-            disabled={analyzing || contract.status === "parsing"}
+            className="gap-2 bg-[#006A3B] hover:bg-[#005a32] shrink-0"
+            disabled={analyzing}
             onClick={handleAnalyze}
           >
             {analyzing ? (
@@ -679,7 +682,7 @@ export default function ContractDetailPage() {
                       </span>
                       <div className="flex-1">
                         <Progress
-                          value={(clause.riskScore! / 10) * 100}
+                          value={clause.riskScore!}
                           className="h-2 bg-muted"
                         />
                       </div>
@@ -687,7 +690,7 @@ export default function ContractDetailPage() {
                         variant={getRiskVariant(clause.riskScore)}
                         className="shrink-0"
                       >
-                        {clause.riskScore!.toFixed(1)}
+                        {formatScore(clause.riskScore!)}
                       </Badge>
                     </div>
                   ))}
@@ -728,7 +731,7 @@ export default function ContractDetailPage() {
                 No analysis results yet.
               </p>
               <Button
-                className="gap-2 bg-blue-600 hover:bg-blue-700"
+                className="gap-2 bg-[#006A3B] hover:bg-[#005a32]"
                 disabled={analyzing}
                 onClick={handleAnalyze}
               >
@@ -756,13 +759,13 @@ export default function ContractDetailPage() {
                   <div className="flex items-center gap-3">
                     {analysis.riskScore !== null && (
                       <Badge variant={getRiskVariant(analysis.riskScore)}>
-                        Risk: {analysis.riskScore.toFixed(1)}
+                        Risk: {formatScore(analysis.riskScore)}
                       </Badge>
                     )}
                     {analysis.confidenceScore !== null && (
                       <span className="text-xs text-muted-foreground">
                         Confidence:{" "}
-                        {(analysis.confidenceScore * 10).toFixed(0)}%
+                        {Math.round(analysis.confidenceScore)}%
                       </span>
                     )}
                   </div>
@@ -793,7 +796,7 @@ export default function ContractDetailPage() {
                 {/* Fairness */}
                 {analysis.resultJson?.fairness && (
                   <div>
-                    <h4 className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-2">
+                    <h4 className="text-xs font-semibold text-[#006A3B] uppercase tracking-wider mb-2">
                       Fairness Assessment
                     </h4>
                     {typeof analysis.resultJson.fairness === "string" ? (
@@ -811,6 +814,16 @@ export default function ContractDetailPage() {
                     )}
                   </div>
                 )}
+
+                {/* Other analysis types (ethics, benchmark) */}
+                {analysis.resultJson &&
+                  !analysis.resultJson.loopholes &&
+                  !analysis.resultJson.fairness &&
+                  !analysis.resultJson.clauseResults && (
+                    <pre className="text-xs text-muted-foreground whitespace-pre-wrap bg-muted/50 rounded-lg p-3 overflow-x-auto max-h-96">
+                      {JSON.stringify(analysis.resultJson, null, 2)}
+                    </pre>
+                  )}
 
                 {/* Clause-level results */}
                 {analysis.resultJson?.clauseResults &&
@@ -835,14 +848,14 @@ export default function ContractDetailPage() {
                                   <Badge
                                     variant={getRiskVariant(cr.risk_score)}
                                   >
-                                    R: {cr.risk_score.toFixed(1)}
+                                    R: {formatScore(cr.risk_score)}
                                   </Badge>
                                 )}
                                 {cr.bias_score !== undefined && (
                                   <Badge
                                     variant={getRiskVariant(cr.bias_score)}
                                   >
-                                    B: {cr.bias_score.toFixed(1)}
+                                    B: {formatScore(cr.bias_score)}
                                   </Badge>
                                 )}
                               </div>

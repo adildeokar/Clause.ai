@@ -5,47 +5,54 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: 0 0% 0%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 0 0% 0%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
-    --radius: 0.625rem;
+    --popover-foreground: 0 0% 0%;
+    --primary: 155 100% 21%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 150 20% 96%;
+    --secondary-foreground: 0 0% 16%;
+    --muted: 150 20% 96%;
+    --muted-foreground: 0 0% 53%;
+    --accent: 150 20% 96%;
+    --accent-foreground: 0 0% 16%;
+    --destructive: 356 94% 59%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 87%;
+    --input: 0 0% 87%;
+    --ring: 155 100% 21%;
+    --radius: 0.5rem;
+
+    --brand-green-25: 150 20% 96%;
+    --brand-green-50: 150 27% 92%;
+    --brand-green-600: 155 100% 21%;
+    --brand-green-400: 155 24% 53%;
+    --brand-red-500: 356 94% 59%;
+    --brand-yellow-400: 42 100% 48%;
   }
 
   .dark {
-    --background: 0 0% 3.9%;
+    --background: 0 0% 4%;
     --foreground: 0 0% 98%;
     --card: 0 0% 6%;
     --card-foreground: 0 0% 98%;
     --popover: 0 0% 6%;
     --popover-foreground: 0 0% 98%;
-    --primary: 217 91% 60%;
+    --primary: 155 60% 45%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 0 0% 14.9%;
+    --secondary: 0 0% 14%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
+    --muted: 0 0% 14%;
+    --muted-foreground: 0 0% 64%;
+    --accent: 0 0% 14%;
     --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
+    --destructive: 0 63% 31%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 217 91% 60%;
+    --border: 0 0% 15%;
+    --input: 0 0% 15%;
+    --ring: 155 60% 45%;
   }
 }
 
@@ -60,32 +67,46 @@
 }
 
 @layer utilities {
-  .glass {
-    @apply border border-border bg-background/80 backdrop-blur-xl dark:border-white/[0.06] dark:bg-white/[0.03];
+  .figma-shadow-header {
+    box-shadow: 0px 4px 2px rgba(204, 225, 216, 0.08);
+  }
+  .figma-shadow-card {
+    box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.05);
+  }
+  .figma-shadow-app {
+    box-shadow:
+      0px 4px 4.8px rgba(0, 106, 59, 0.08),
+      0px 4px 4.8px rgba(0, 106, 59, 0.08);
+  }
+  .figma-card {
+    @apply rounded-lg border border-[#E8E8E8] bg-white figma-shadow-card;
   }
   .glass-card {
-    @apply rounded-xl border border-border bg-card/95 backdrop-blur-xl dark:border-white/[0.08] dark:bg-white/[0.04];
+    @apply figma-card;
   }
-  .glass-hover {
-    @apply transition-colors duration-200 hover:bg-accent/90 dark:hover:bg-white/[0.06];
+  .btn-brand {
+    @apply bg-[#006A3B] text-white hover:bg-[#005a32];
   }
-  .gradient-text {
-    @apply bg-gradient-to-r from-blue-600 via-purple-600 to-cyan-600 bg-clip-text text-transparent dark:from-blue-400 dark:via-purple-400 dark:to-cyan-400;
+  .text-brand {
+    @apply text-[#006A3B];
   }
-  .gradient-border {
-    @apply border border-transparent bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-cyan-500/20;
+  .form-label {
+    @apply text-sm font-medium text-[#4B4B4B];
   }
-  .risk-glow-low {
-    box-shadow: 0 0 20px rgba(34, 197, 94, 0.15);
+  .form-input {
+    @apply flex h-10 w-full rounded-md border border-[#DDDDDD] bg-white px-3 py-2 text-sm text-[#282828] shadow-none placeholder:text-[#868686] focus-visible:border-[#66A689] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#006A3B]/20 disabled:cursor-not-allowed disabled:bg-[#F4F7F6] disabled:text-[#868686];
   }
-  .risk-glow-medium {
-    box-shadow: 0 0 20px rgba(245, 158, 11, 0.15);
+  .form-section-title {
+    @apply text-lg font-semibold text-[#282828];
   }
-  .risk-glow-high {
-    box-shadow: 0 0 20px rgba(239, 68, 68, 0.15);
+  .form-section-desc {
+    @apply text-sm text-[#868686];
   }
-  .risk-glow-critical {
-    box-shadow: 0 0 20px rgba(220, 38, 38, 0.25);
+  .settings-tab-list {
+    @apply inline-flex h-auto flex-wrap items-center gap-1 rounded-lg border border-[#E8E8E8] bg-[#F4F7F6] p-1;
+  }
+  .settings-tab-trigger {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-[#868686] transition-colors hover:text-[#282828] data-[state=active]:bg-white data-[state=active]:text-[#282828] data-[state=active]:shadow-sm;
   }
 }
 
@@ -102,13 +123,4 @@
 }
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground) / 0.55);
-}
-
-.animate-in {
-  animation: fade-in 0.5s ease-out forwards;
-}
-
-@keyframes pulse-glow {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 1; }
 }

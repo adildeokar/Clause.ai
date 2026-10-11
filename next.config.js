@@ -1,15 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    serverComponentsExternalPackages: ['pdf-parse', 'mammoth'],
-  },
-  images: {
-    domains: [],
-  },
-  webpack: (config) => {
-    config.resolve.alias.canvas = false;
-    config.resolve.alias.encoding = false;
-    return config;
+    // Document parsers are Node-only CommonJS packages; load them at runtime.
+    serverComponentsExternalPackages: ["pdf-parse", "mammoth", "word-extractor"],
   },
 };
 

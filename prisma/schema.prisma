@@ -21,6 +21,7 @@ model User {
   contracts     Contract[]
   analyses      AnalysisResult[]
   riskProfile   RiskProfile?
+  chatMessages  ChatMessage[]
 
   @@map("users")
 }
@@ -47,6 +48,7 @@ model Contract {
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   clauses       Clause[]
   analyses      AnalysisResult[]
+  chatMessages  ChatMessage[]
 
   @@index([userId])
   @@map("contracts")
@@ -69,9 +71,36 @@ model Clause {
   contract      Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
   versions      ClauseVersion[]
   stressTests   StressTest[]
+  embedding     ClauseEmbedding?
 
   @@index([contractId])
   @@map("clauses")
+}
+
+// Embedding of a clause's text, computed lazily for document chat retrieval.
+model ClauseEmbedding {
+  clauseId      String    @id
+  vector        Float[]
+  createdAt     DateTime  @default(now())
+
+  clause        Clause    @relation(fields: [clauseId], references: [id], onDelete: Cascade)
+
+  @@map("clause_embeddings")
+}
+
+model ChatMessage {
+  id            String    @id @default(cuid())
+  contractId    String
+  userId        String
+  role          String    // user | assistant
+  content       String
+  createdAt     DateTime  @default(now())
+
+  contract      Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([contractId, userId, createdAt])
+  @@map("chat_messages")
 }
 
 model ClauseVersion {

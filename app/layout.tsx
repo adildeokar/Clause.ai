@@ -3,7 +3,10 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/layout/providers";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-sans",
+});
 
 export const metadata: Metadata = {
   title: "Clause AI — Contract Intelligence Platform",
@@ -23,8 +26,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
+    <html lang="en" className="light" suppressHydrationWarning>
+      <body
+        className={`${inter.className} font-sans antialiased`}
+        style={{ fontFamily: "var(--font-sans), -apple-system, BlinkMacSystemFont, 'SF Pro', sans-serif" }}
+      >
         <Providers>{children}</Providers>
       </body>
     </html>

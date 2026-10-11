@@ -54,23 +54,23 @@ const ACCEPTED_TYPES: Record<string, { label: string; color: string }> = {
   "application/pdf": { label: "PDF", color: "text-red-400 bg-red-500/10" },
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {
     label: "DOCX",
-    color: "text-blue-400 bg-blue-500/10",
-  },
-  "application/msword": {
-    label: "DOC",
-    color: "text-blue-400 bg-blue-500/10",
+    color: "text-[#006A3B] bg-[#E5F0EB]",
   },
   "text/plain": { label: "TXT", color: "text-green-400 bg-green-500/10" },
 };
 
-const ACCEPT_STRING = Object.keys(ACCEPTED_TYPES).join(",") + ",.pdf,.docx,.doc,.txt";
+// Must match SUPPORTED_FILE_TYPES in lib/parsing.ts (legacy .doc is not parseable)
+const SUPPORTED_EXTENSIONS = ["pdf", "docx", "txt", "rtf", "md"];
+
+const ACCEPT_STRING =
+  Object.keys(ACCEPTED_TYPES).join(",") + "," + SUPPORTED_EXTENSIONS.map((e) => `.${e}`).join(",");
 
 function getFileTypeInfo(file: File) {
   const byMime = ACCEPTED_TYPES[file.type];
   if (byMime) return byMime;
   const ext = file.name.split(".").pop()?.toLowerCase();
   if (ext === "pdf") return { label: "PDF", color: "text-red-400 bg-red-500/10" };
-  if (ext === "docx" || ext === "doc") return { label: ext.toUpperCase(), color: "text-blue-400 bg-blue-500/10" };
+  if (ext === "docx") return { label: "DOCX", color: "text-[#006A3B] bg-[#E5F0EB]" };
   if (ext === "txt") return { label: "TXT", color: "text-green-400 bg-green-500/10" };
   return { label: ext?.toUpperCase() ?? "FILE", color: "text-muted-foreground bg-muted" };
 }
@@ -100,6 +100,14 @@ export default function UploadPage() {
   }, []);
 
   const handleFile = useCallback((selectedFile: File) => {
+    const ext = selectedFile.name.split(".").pop()?.toLowerCase() ?? "";
+    if (!SUPPORTED_EXTENSIONS.includes(ext)) {
+      setError(
+        `Unsupported file type ".${ext}". Supported: ${SUPPORTED_EXTENSIONS.join(", ")}`
+      );
+      return;
+    }
+
     setFile(selectedFile);
     setError(null);
 
@@ -212,8 +220,10 @@ export default function UploadPage() {
           <ArrowLeft className="h-4 w-4" />
           Back to Contracts
         </Link>
-        <h2 className="text-2xl font-bold tracking-tight">Upload Contract</h2>
-        <p className="text-muted-foreground mt-1">
+        <h1 className="text-[32px] font-medium leading-tight tracking-[-0.08px] text-black">
+          Upload Contract
+        </h1>
+        <p className="mt-1 text-base text-[#868686]">
           Upload a contract document for AI-powered analysis.
         </p>
       </div>
@@ -223,7 +233,7 @@ export default function UploadPage() {
         <div
           className={`relative rounded-xl border-2 border-dashed transition-all duration-200 ${
             dragActive
-              ? "border-blue-500 bg-blue-500/5"
+              ? "border-[#66A689] bg-[#F4F7F6]"
               : file
                 ? "border-green-500/30 bg-green-500/5"
                 : "border-border hover:border-primary/40 bg-muted/50"
@@ -264,8 +274,8 @@ export default function UploadPage() {
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center p-12 text-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-500/10 mb-4">
-                <Upload className="h-7 w-7 text-blue-400" />
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#E5F0EB] mb-4">
+                <Upload className="h-7 w-7 text-[#006A3B]" />
               </div>
               <p className="text-sm font-medium mb-1">
                 Drag & drop your contract here
@@ -276,9 +286,10 @@ export default function UploadPage() {
               <div className="flex items-center gap-3 mb-4">
                 {[
                   { label: "PDF", color: "text-red-400 bg-red-500/10" },
-                  { label: "DOCX", color: "text-blue-400 bg-blue-500/10" },
-                  { label: "DOC", color: "text-blue-400 bg-blue-500/10" },
+                  { label: "DOCX", color: "text-[#006A3B] bg-[#E5F0EB]" },
                   { label: "TXT", color: "text-green-400 bg-green-500/10" },
+                  { label: "RTF", color: "text-muted-foreground bg-muted" },
+                  { label: "MD", color: "text-muted-foreground bg-muted" },
                 ].map(({ label, color }) => (
                   <span
                     key={label}
@@ -320,7 +331,7 @@ export default function UploadPage() {
               <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">
                 {preview}
                 {preview.length >= 2000 && (
-                  <span className="text-blue-400">... (truncated)</span>
+                  <span className="text-[#006A3B]">... (truncated)</span>
                 )}
               </p>
             </div>
@@ -394,7 +405,7 @@ export default function UploadPage() {
                 {progress >= 100 ? (
                   <CheckCircle2 className="h-4 w-4 text-green-400" />
                 ) : (
-                  <Loader2 className="h-4 w-4 animate-spin text-blue-400" />
+                  <Loader2 className="h-4 w-4 animate-spin text-[#006A3B]" />
                 )}
                 <span className="text-sm font-medium">
                   {progress >= 100
@@ -430,7 +441,7 @@ export default function UploadPage() {
           </Link>
           <Button
             type="submit"
-            className="gap-2 bg-blue-600 hover:bg-blue-700 min-w-[160px]"
+            className="gap-2 bg-[#006A3B] hover:bg-[#005a32] min-w-[160px]"
             disabled={uploading || !file}
           >
             {uploading ? (

@@ -159,8 +159,10 @@ export default function AnalyticsPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Analytics</h2>
-          <p className="text-muted-foreground">
+          <h1 className="text-[32px] font-medium leading-tight tracking-[-0.08px] text-black">
+            Contract Analytics
+          </h1>
+          <p className="mt-1 text-base text-[#868686]">
             Comprehensive insights into your contract portfolio and risk landscape.
           </p>
         </div>
@@ -171,7 +173,7 @@ export default function AnalyticsPage() {
               key={range.value}
               variant={dateRange === range.value ? "default" : "ghost"}
               size="sm"
-              className={dateRange === range.value ? "bg-blue-600 hover:bg-blue-700" : "text-muted-foreground hover:text-foreground"}
+              className={dateRange === range.value ? "bg-[#006A3B] hover:bg-[#005a32]" : "text-muted-foreground hover:text-foreground"}
               onClick={() => { setLoading(true); setDateRange(range.value); }}
             >
               {range.label}
@@ -181,10 +183,10 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Mock Data Notice */}
-      <div className="glass-card p-3 border-blue-500/20 flex items-center gap-2">
-        <Activity className="h-4 w-4 text-blue-400 shrink-0" />
+      <div className="glass-card p-3 border-[#66A689]/20 flex items-center gap-2">
+        <Activity className="h-4 w-4 text-[#006A3B] shrink-0" />
         <p className="text-xs text-muted-foreground">
-          Displaying sample analytics data. Connect to <code className="text-blue-400">/api/dashboard/stats</code> for live metrics.
+          Displaying sample analytics data. Connect to <code className="text-[#006A3B]">/api/dashboard/stats</code> for live metrics.
         </p>
       </div>
 
@@ -196,7 +198,7 @@ export default function AnalyticsPage() {
         ) : (
           <div className="glass-card p-6">
             <div className="flex items-center gap-2 mb-6">
-              <TrendingUp className="h-4 w-4 text-blue-400" />
+              <TrendingUp className="h-4 w-4 text-[#006A3B]" />
               <h3 className="text-sm font-semibold text-foreground">Risk Score Trends</h3>
             </div>
             <ResponsiveContainer width="100%" height={280}>

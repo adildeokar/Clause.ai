@@ -118,6 +118,7 @@ export default function DraftingPage() {
         const data = await res.json();
         rewritten = data.rewritten ?? data.rewrittenText ?? data.text ?? "";
       } else {
+        setError("AI rewrite is unavailable right now. Showing a basic local transformation instead.");
         const styleDescriptions: Record<DraftStyle, string> = {
           corporate: "In a formal corporate tone with precise legal language",
           startup: "In a modern, balanced startup-friendly tone",
@@ -143,7 +144,7 @@ export default function DraftingPage() {
       setCurrentResult(result);
       setHistory((prev) => [result, ...prev]);
     } catch {
-      setError("Failed to rewrite clause. Showing a local transformation instead.");
+      setError("Failed to rewrite clause. Please try again.");
     } finally {
       setRewriting(false);
     }
@@ -173,10 +174,11 @@ export default function DraftingPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">AI Drafting</h2>
-        <p className="text-muted-foreground">
+        <h1 className="text-[32px] font-medium leading-tight tracking-[-0.08px] text-black">
+          Drafting
+        </h1>
+        <p className="mt-1 text-base text-[#868686]">
           Rewrite and refine contract clauses with AI-powered style adaptation.
         </p>
       </div>
@@ -264,7 +266,7 @@ export default function DraftingPage() {
             </div>
 
             <Button
-              className="w-full gap-2 bg-blue-600 hover:bg-blue-700"
+              className="w-full gap-2 bg-[#006A3B] hover:bg-[#005a32]"
               disabled={!clauseText.trim() || rewriting}
               onClick={handleRewrite}
             >
@@ -309,11 +311,11 @@ export default function DraftingPage() {
               </div>
 
               {/* Rewritten */}
-              <div className="glass-card p-6 border-blue-500/20">
+              <div className="glass-card p-6 border-[#66A689]/20">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm font-semibold text-foreground">Rewritten Clause</h3>
-                    <Badge variant="outline" className="text-blue-400 border-blue-500/30">
+                    <Badge variant="outline" className="text-[#006A3B] border-[#66A689]/30">
                       {STYLES.find((s) => s.value === currentResult.style)?.label}
                     </Badge>
                     <Badge variant="outline" className="text-muted-foreground">
@@ -364,8 +366,8 @@ export default function DraftingPage() {
             </>
           ) : (
             <div className="glass-card p-12 flex flex-col items-center justify-center text-center min-h-[400px]">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-500/10 mb-4">
-                <PenTool className="h-8 w-8 text-blue-400" />
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#E5F0EB] mb-4">
+                <PenTool className="h-8 w-8 text-[#006A3B]" />
               </div>
               <h3 className="text-lg font-semibold mb-2">Ready to Rewrite</h3>
               <p className="text-sm text-muted-foreground max-w-sm">
@@ -406,7 +408,7 @@ export default function DraftingPage() {
                 >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="text-blue-400 border-blue-500/30">
+                      <Badge variant="outline" className="text-[#006A3B] border-[#66A689]/30">
                         {STYLES.find((s) => s.value === item.style)?.label}
                       </Badge>
                       <Badge variant="outline" className="text-muted-foreground">

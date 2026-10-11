@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 // TODO: Add rate limiting middleware
+
+export const dynamic = "force-dynamic";
 // TODO: Add caching for dashboard stats (e.g., Redis or in-memory with TTL)
 
 export async function GET() {
@@ -15,6 +17,9 @@ export async function GET() {
 
     const userId = (session.user as any).id as string;
 
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
     const [
       totalContracts,
       contractScores,
@@ -22,6 +27,10 @@ export async function GET() {
       highRiskClauses,
       recentContracts,
       riskDistribution,
+      activeContracts,
+      highAlertContracts,
+      expiringSoonContracts,
+      pendingContracts,
     ] = await Promise.all([
       db.contract.count({ where: { userId } }),
 
@@ -37,38 +46,63 @@ export async function GET() {
       db.clause.count({
         where: {
           contract: { userId },
-          riskScore: { gte: 7 },
+          riskScore: { gte: 70 },
         },
       }),
 
       db.contract.findMany({
         where: { userId },
         orderBy: { createdAt: "desc" },
-        take: 5,
+        take: 10,
         select: {
           id: true,
           title: true,
           status: true,
+          jurisdiction: true,
           riskScore: true,
           createdAt: true,
+          updatedAt: true,
           _count: { select: { clauses: true } },
         },
       }),
 
       Promise.all([
         db.contract.count({
-          where: { userId, riskScore: { lt: 3 } },
+          where: { userId, riskScore: { lt: 30 } },
         }),
         db.contract.count({
-          where: { userId, riskScore: { gte: 3, lt: 5 } },
+          where: { userId, riskScore: { gte: 30, lt: 50 } },
         }),
         db.contract.count({
-          where: { userId, riskScore: { gte: 5, lt: 7 } },
+          where: { userId, riskScore: { gte: 50, lt: 70 } },
         }),
         db.contract.count({
-          where: { userId, riskScore: { gte: 7 } },
+          where: { userId, riskScore: { gte: 70 } },
         }),
       ]),
+
+      db.contract.count({
+        where: { userId, status: "analyzed" },
+      }),
+
+      db.contract.count({
+        where: { userId, riskScore: { gte: 70 } },
+      }),
+
+      db.contract.count({
+        where: {
+          userId,
+          status: "analyzed",
+          updatedAt: { lte: thirtyDaysAgo },
+        },
+      }),
+
+      db.contract.count({
+        where: {
+          userId,
+          status: { in: ["uploaded", "parsing"] },
+        },
+      }),
     ]);
 
     return NextResponse.json({
@@ -77,6 +111,10 @@ export async function GET() {
       totalClauses,
       highRiskClauses,
       recentContracts,
+      activeContracts,
+      highAlertContracts,
+      expiringSoonContracts,
+      pendingContracts,
       riskDistribution: {
         low: riskDistribution[0],
         medium: riskDistribution[1],

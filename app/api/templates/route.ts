@@ -35,6 +35,7 @@ export async function GET(req: NextRequest) {
         description: true,
         category: true,
         jurisdiction: true,
+        content: true,
         fields: true,
         createdAt: true,
         updatedAt: true,

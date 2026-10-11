@@ -50,7 +50,9 @@ export async function POST(
         userId,
         analysisType: "benchmark",
         resultJson: JSON.parse(JSON.stringify(result)),
-        riskScore: result.clause_score,
+        // clause_score is a quality score (100 = best); store it as risk.
+        riskScore:
+          typeof result.clause_score === "number" ? 100 - result.clause_score : null,
         jurisdiction: clause.contract.jurisdiction,
       },
     });

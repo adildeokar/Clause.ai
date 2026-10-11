@@ -33,3 +33,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local editor config
+.cursor/
+
+# one-off user scripts containing plaintext credentials
+prisma/add-azhaan.ts

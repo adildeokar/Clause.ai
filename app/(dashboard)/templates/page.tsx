@@ -16,6 +16,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
+import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -224,6 +225,7 @@ export default function TemplatesPage() {
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
   const [generating, setGenerating] = useState(false);
   const [generatedContract, setGeneratedContract] = useState<string | null>(null);
+  const [generatedContractId, setGeneratedContractId] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchTemplates() {
@@ -232,10 +234,20 @@ export default function TemplatesPage() {
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
-            setTemplates(data.map((t: any) => ({
+            const loaded: Template[] = data.map((t: any) => ({
               ...t,
-              fields: t.fields ?? MOCK_TEMPLATES.find((m) => m.category === t.category)?.fields ?? [],
-            })));
+              description: t.description ?? "",
+              content: t.content ?? "",
+              fields: Array.isArray(t.fields)
+                ? t.fields
+                : MOCK_TEMPLATES.find((m) => m.category === t.category)?.fields ?? [],
+            }));
+            setTemplates(loaded);
+
+            // Dashboard carousel links here with ?generate=<templateId>
+            const requestedId = new URLSearchParams(window.location.search).get("generate");
+            const requested = requestedId && loaded.find((t) => t.id === requestedId);
+            if (requested) openTemplate(requested);
           } else {
             setTemplates(MOCK_TEMPLATES);
           }
@@ -272,6 +284,7 @@ export default function TemplatesPage() {
     setSelectedTemplate(template);
     setFieldValues({});
     setGeneratedContract(null);
+    setGeneratedContractId(null);
   }
 
   async function handleGenerate() {
@@ -284,6 +297,7 @@ export default function TemplatesPage() {
     if (missing.length > 0) return;
 
     setGenerating(true);
+    setGeneratedContractId(null);
     try {
       const res = await fetch(`/api/templates/${selectedTemplate.id}/generate`, {
         method: "POST",
@@ -292,8 +306,10 @@ export default function TemplatesPage() {
       });
 
       if (res.ok) {
+        // Response shape: { contract: Contract, notes: string[] }
         const data = await res.json();
-        setGeneratedContract(data.content ?? data.generatedContent ?? "");
+        setGeneratedContract(data.contract?.rawText ?? "");
+        setGeneratedContractId(data.contract?.id ?? null);
       } else {
         let filled = selectedTemplate.content;
         Object.entries(fieldValues).forEach(([key, value]) => {
@@ -327,13 +343,15 @@ export default function TemplatesPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Templates</h2>
-          <p className="text-muted-foreground">
+          <h1 className="text-[32px] font-medium leading-tight tracking-[-0.08px] text-black">
+            Rule Book
+          </h1>
+          <p className="mt-1 text-base text-[#868686]">
             Browse and generate contracts from pre-built legal templates.
           </p>
         </div>
         {isAdmin && (
-          <Button className="gap-2 bg-blue-600 hover:bg-blue-700">
+          <Button className="gap-2 bg-[#006A3B] hover:bg-[#005a32]">
             <Plus className="h-4 w-4" />
             Create Template
           </Button>
@@ -409,7 +427,7 @@ export default function TemplatesPage() {
                     <FileText className="h-5 w-5 text-purple-400" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold group-hover:text-blue-400 transition-colors">
+                    <p className="text-sm font-semibold group-hover:text-[#006A3B] transition-colors">
                       {template.name}
                     </p>
                     <Badge variant="outline" className="text-xs text-muted-foreground mt-1">
@@ -429,7 +447,7 @@ export default function TemplatesPage() {
                   variant="outline"
                   className={cn(
                     "text-xs",
-                    template.jurisdiction === "US" && "text-blue-400 border-blue-500/30",
+                    template.jurisdiction === "US" && "text-[#006A3B] border-[#66A689]/30",
                     template.jurisdiction === "IN" && "text-orange-400 border-orange-500/30",
                     template.jurisdiction === "UK" && "text-purple-400 border-purple-500/30"
                   )}
@@ -499,10 +517,10 @@ export default function TemplatesPage() {
               {generatedContract && (
                 <div className="space-y-2">
                   <h4 className="text-sm font-medium flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-blue-400" />
+                    <Sparkles className="h-4 w-4 text-[#006A3B]" />
                     Generated Contract
                   </h4>
-                  <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-4">
+                  <div className="rounded-lg border border-[#66A689]/20 bg-[#F4F7F6] p-4">
                     <pre className="text-sm text-foreground whitespace-pre-wrap font-mono leading-relaxed">
                       {generatedContract}
                     </pre>
@@ -523,17 +541,22 @@ export default function TemplatesPage() {
                   Edit Fields
                 </Button>
                 <Button
-                  className="flex-1 bg-blue-600 hover:bg-blue-700"
+                  className="flex-1 bg-[#006A3B] hover:bg-[#005a32]"
                   onClick={() => {
                     navigator.clipboard.writeText(generatedContract);
                   }}
                 >
                   Copy to Clipboard
                 </Button>
+                {generatedContractId && (
+                  <Button asChild className="flex-1 bg-[#006A3B] hover:bg-[#005a32]">
+                    <Link href={`/contracts/${generatedContractId}`}>Open Contract</Link>
+                  </Button>
+                )}
               </>
             ) : (
               <Button
-                className="w-full gap-2 bg-blue-600 hover:bg-blue-700"
+                className="w-full gap-2 bg-[#006A3B] hover:bg-[#005a32]"
                 disabled={generating}
                 onClick={handleGenerate}
               >

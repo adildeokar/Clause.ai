@@ -2,38 +2,19 @@
 
 import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
-  FileText,
   Search,
   Upload,
   Filter,
   ChevronLeft,
   ChevronRight,
-  Clock,
-  File,
   AlertTriangle,
 } from "lucide-react";
 
+import { PageHeader } from "@/components/app/page-header";
+import { ContractsTable, type ContractTableRow } from "@/components/app/contracts-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-
-interface Contract {
-  id: string;
-  title: string;
-  fileName: string;
-  fileType: string;
-  status: string;
-  jurisdiction: string;
-  contractType: string | null;
-  riskScore: number | null;
-  biasScore: number | null;
-  strengthScore: number | null;
-  createdAt: string;
-  updatedAt: string;
-  _count: { clauses: number };
-}
 
 interface Pagination {
   page: number;
@@ -44,56 +25,8 @@ interface Pagination {
 
 const STATUS_FILTERS = ["All", "uploaded", "analyzed", "parsing", "error"] as const;
 
-function getRiskVariant(score: number | null) {
-  if (score === null) return "secondary" as const;
-  if (score < 3) return "low" as const;
-  if (score < 5) return "medium" as const;
-  if (score < 7) return "high" as const;
-  return "critical" as const;
-}
-
-function getRiskLabel(score: number | null) {
-  if (score === null) return "Pending";
-  if (score < 3) return "Low Risk";
-  if (score < 5) return "Medium";
-  if (score < 7) return "High Risk";
-  return "Critical";
-}
-
-function getFileIcon(fileType: string) {
-  const colors: Record<string, string> = {
-    pdf: "text-red-400 bg-red-500/10",
-    docx: "text-blue-400 bg-blue-500/10",
-    doc: "text-blue-400 bg-blue-500/10",
-    txt: "text-green-400 bg-green-500/10",
-  };
-  return colors[fileType.toLowerCase()] ?? "text-muted-foreground bg-muted";
-}
-
-function ContractCardSkeleton() {
-  return (
-    <div className="glass-card p-5 animate-pulse">
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-muted" />
-          <div>
-            <div className="h-4 w-40 rounded bg-muted mb-2" />
-            <div className="h-3 w-24 rounded bg-muted" />
-          </div>
-        </div>
-        <div className="h-5 w-16 rounded-full bg-muted" />
-      </div>
-      <div className="flex items-center gap-3 mt-4">
-        <div className="h-5 w-20 rounded-full bg-muted" />
-        <div className="h-5 w-24 rounded-full bg-muted" />
-      </div>
-    </div>
-  );
-}
-
 export default function ContractsPage() {
-  const router = useRouter();
-  const [contracts, setContracts] = useState<Contract[]>([]);
+  const [contracts, setContracts] = useState<ContractTableRow[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -104,8 +37,9 @@ export default function ContractsPage() {
   useEffect(() => {
     async function fetchContracts() {
       setLoading(true);
+      setError(null);
       try {
-        const params = new URLSearchParams({ page: String(page), limit: "12" });
+        const params = new URLSearchParams({ page: String(page), limit: "20" });
         if (search) params.set("search", search);
         if (statusFilter !== "All") params.set("status", statusFilter);
 
@@ -137,10 +71,14 @@ export default function ContractsPage() {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 gap-4">
-        <AlertTriangle className="h-12 w-12 text-red-400" />
-        <p className="text-lg text-muted-foreground">{error}</p>
-        <Button onClick={() => window.location.reload()} variant="outline">
+      <div className="flex flex-col items-center justify-center gap-4 py-20">
+        <AlertTriangle className="h-12 w-12 text-[#F83446]" />
+        <p className="text-lg text-[#868686]">{error}</p>
+        <Button
+          onClick={() => window.location.reload()}
+          variant="outline"
+          className="border-[#006A3B] text-[#006A3B]"
+        >
           Retry
         </Button>
       </div>
@@ -148,37 +86,28 @@ export default function ContractsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Contracts</h2>
-          <p className="text-muted-foreground">
-            {pagination
-              ? `${pagination.total} contract${pagination.total !== 1 ? "s" : ""} total`
-              : "Manage and analyze your contracts."}
-          </p>
-        </div>
-        <Link href="/contracts/upload">
-          <Button className="gap-2 bg-blue-600 hover:bg-blue-700">
-            <Upload className="h-4 w-4" />
-            Upload New Contract
-          </Button>
-        </Link>
-      </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title="Repository"
+        description={
+          pagination
+            ? `${pagination.total} contract${pagination.total !== 1 ? "s" : ""} in your library`
+            : "Manage and analyze your contracts."
+        }
+        action={{ label: "Upload contract", href: "/contracts/upload" }}
+      />
 
-      {/* Search & Filters */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative max-w-md flex-1">
+          <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[#4B4B4B]" />
           <Input
-            placeholder="Search contracts..."
-            className="pl-9 border-border bg-muted/50"
+            placeholder="Search contracts"
+            className="h-8 border-[#DDDDDD] pl-10 text-[#4B4B4B] placeholder:text-[#868686]"
             onChange={(e) => debouncedSearch(e.target.value)}
           />
         </div>
-        <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-muted-foreground" />
+        <div className="flex flex-wrap items-center gap-2">
+          <Filter className="h-4 w-4 text-[#868686]" />
           {STATUS_FILTERS.map((status) => (
             <Button
               key={status}
@@ -186,133 +115,48 @@ export default function ContractsPage() {
               size="sm"
               className={
                 statusFilter === status
-                  ? "bg-blue-600 hover:bg-blue-700"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "bg-[#006A3B] hover:bg-[#005a32]"
+                  : "text-[#868686] hover:bg-[#F4F7F6] hover:text-black"
               }
               onClick={() => setStatusFilter(status)}
             >
-              {status === "All" ? "All" : status.charAt(0).toUpperCase() + status.slice(1)}
+              {status === "All"
+                ? "All"
+                : status.charAt(0).toUpperCase() + status.slice(1)}
             </Button>
           ))}
+          <Link href="/contracts/upload">
+            <Button className="gap-2 bg-[#006A3B] hover:bg-[#005a32]">
+              <Upload className="h-4 w-4" />
+              Upload
+            </Button>
+          </Link>
         </div>
       </div>
 
-      {/* Contract Grid */}
-      {loading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <ContractCardSkeleton key={i} />
-          ))}
-        </div>
-      ) : contracts.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted/60 mb-4">
-            <FileText className="h-8 w-8 text-muted-foreground/50" />
-          </div>
-          <h3 className="text-lg font-semibold mb-1">No contracts found</h3>
-          <p className="text-sm text-muted-foreground mb-4 max-w-sm">
-            {search || statusFilter !== "All"
-              ? "Try adjusting your search or filters."
-              : "Upload your first contract to get started with AI-powered analysis."}
-          </p>
-          {!search && statusFilter === "All" && (
-            <Link href="/contracts/upload">
-              <Button className="gap-2 bg-blue-600 hover:bg-blue-700">
-                <Upload className="h-4 w-4" />
-                Upload Contract
-              </Button>
-            </Link>
-          )}
-        </div>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {contracts.map((contract) => (
-            <Link
-              key={contract.id}
-              href={`/contracts/${contract.id}`}
-              className="glass-card p-5 transition-all duration-200 hover:bg-muted hover:border-primary/25 group"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${getFileIcon(contract.fileType)}`}
-                  >
-                    <File className="h-5 w-5" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold truncate group-hover:text-blue-400 transition-colors">
-                      {contract.title}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {contract.fileName}
-                    </p>
-                  </div>
-                </div>
-              </div>
+      <ContractsTable contracts={contracts} loading={loading} highlightIndex={1} />
 
-              <div className="flex items-center gap-2 text-xs text-muted-foreground mb-4">
-                <Clock className="h-3 w-3" />
-                {new Date(contract.createdAt).toLocaleDateString()}
-                {contract.contractType && (
-                  <>
-                    <span className="text-white/20">|</span>
-                    <span className="truncate">{contract.contractType}</span>
-                  </>
-                )}
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Badge
-                    variant={
-                      contract.status === "analyzed"
-                        ? "low"
-                        : contract.status === "error"
-                          ? "critical"
-                          : contract.status === "parsing"
-                            ? "medium"
-                            : "secondary"
-                    }
-                  >
-                    {contract.status}
-                  </Badge>
-                  <Badge variant="outline" className="text-muted-foreground">
-                    {contract._count.clauses} clauses
-                  </Badge>
-                </div>
-                {contract.riskScore !== null && (
-                  <Badge variant={getRiskVariant(contract.riskScore)}>
-                    {getRiskLabel(contract.riskScore)} ({contract.riskScore.toFixed(1)})
-                  </Badge>
-                )}
-              </div>
-            </Link>
-          ))}
-        </div>
-      )}
-
-      {/* Pagination */}
       {pagination && pagination.totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2 pt-4">
+        <div className="flex items-center justify-center gap-2 pt-2">
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
             disabled={page <= 1}
             onClick={() => setPage((p) => p - 1)}
-            className="gap-1"
+            className="gap-1 border-[#DDDDDD]"
           >
             <ChevronLeft className="h-4 w-4" />
             Previous
           </Button>
-          <span className="text-sm text-muted-foreground px-4">
+          <span className="px-4 text-sm text-[#868686]">
             Page {pagination.page} of {pagination.totalPages}
           </span>
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
             disabled={page >= pagination.totalPages}
             onClick={() => setPage((p) => p + 1)}
-            className="gap-1"
+            className="gap-1 border-[#DDDDDD]"
           >
             Next
             <ChevronRight className="h-4 w-4" />

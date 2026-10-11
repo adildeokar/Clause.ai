@@ -9,7 +9,6 @@ import {
   AlertTriangle,
   Shield,
   Scale,
-  Swords,
   Heart,
   Clock,
   BarChart3,
@@ -36,19 +35,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
+import { cn, formatScore, getRiskLevel, type RiskLevel } from "@/lib/utils";
 
-type AnalysisType = "loophole" | "fairness" | "adversarial" | "ethics";
+// Matches AnalysisResult.analysisType values written by the API routes.
+type AnalysisType = "full" | "ethics" | "benchmark";
 
 interface Analysis {
   id: string;
   contractId: string;
   contractTitle: string;
   type: AnalysisType;
-  riskScore: number;
+  riskScore: number | null;
   issuesFound: number;
   createdAt: string;
-  status: "completed" | "in_progress" | "failed";
 }
 
 interface AvailableContract {
@@ -57,40 +56,31 @@ interface AvailableContract {
   status: string;
 }
 
-const ANALYSIS_TYPES: { value: AnalysisType; label: string; icon: typeof Shield; color: string; bg: string }[] = [
-  { value: "loophole", label: "Loophole Detection", icon: Search, color: "text-orange-400", bg: "bg-orange-500/10" },
-  { value: "fairness", label: "Fairness Analysis", icon: Scale, color: "text-blue-400", bg: "bg-blue-500/10" },
-  { value: "adversarial", label: "Adversarial Review", icon: Swords, color: "text-red-400", bg: "bg-red-500/10" },
-  { value: "ethics", label: "Ethics Assessment", icon: Heart, color: "text-purple-400", bg: "bg-purple-500/10" },
+const ANALYSIS_TYPES: { value: AnalysisType; label: string; description: string; icon: typeof Shield; color: string; bg: string }[] = [
+  { value: "full", label: "Full Analysis", description: "Clause risk, loopholes & fairness", icon: Search, color: "text-orange-400", bg: "bg-orange-500/10" },
+  { value: "ethics", label: "Ethics Scan", description: "Bias & inclusivity review", icon: Heart, color: "text-purple-400", bg: "bg-purple-500/10" },
+  { value: "benchmark", label: "Clause Benchmark", description: "Run from a clause on the contract page", icon: Scale, color: "text-[#006A3B]", bg: "bg-[#E5F0EB]" },
 ];
 
-const MOCK_ANALYSES: Analysis[] = [
-  { id: "a1", contractId: "c1", contractTitle: "Master Service Agreement - Acme Corp", type: "loophole", riskScore: 7.2, issuesFound: 5, createdAt: "2025-03-15T10:30:00Z", status: "completed" },
-  { id: "a2", contractId: "c2", contractTitle: "NDA - TechStart Inc", type: "fairness", riskScore: 3.1, issuesFound: 2, createdAt: "2025-03-14T14:00:00Z", status: "completed" },
-  { id: "a3", contractId: "c1", contractTitle: "Master Service Agreement - Acme Corp", type: "ethics", riskScore: 4.5, issuesFound: 3, createdAt: "2025-03-14T09:15:00Z", status: "completed" },
-  { id: "a4", contractId: "c3", contractTitle: "Employment Contract - Global Solutions", type: "adversarial", riskScore: 8.4, issuesFound: 8, createdAt: "2025-03-13T16:45:00Z", status: "completed" },
-  { id: "a5", contractId: "c4", contractTitle: "Software License Agreement - CloudBase", type: "loophole", riskScore: 5.6, issuesFound: 4, createdAt: "2025-03-13T11:20:00Z", status: "completed" },
-  { id: "a6", contractId: "c5", contractTitle: "Partnership Agreement - InnoVentures", type: "fairness", riskScore: 2.8, issuesFound: 1, createdAt: "2025-03-12T08:30:00Z", status: "completed" },
-  { id: "a7", contractId: "c3", contractTitle: "Employment Contract - Global Solutions", type: "ethics", riskScore: 6.1, issuesFound: 4, createdAt: "2025-03-11T15:00:00Z", status: "completed" },
-  { id: "a8", contractId: "c6", contractTitle: "Vendor Agreement - SupplyChain Pro", type: "adversarial", riskScore: 9.1, issuesFound: 11, createdAt: "2025-03-10T13:00:00Z", status: "completed" },
-];
+// Benchmarks are per-clause, so they are started from the contract page instead.
+const STARTABLE_TYPES = ANALYSIS_TYPES.filter((t) => t.value !== "benchmark");
 
-function getRiskVariant(score: number) {
-  if (score < 3) return "low" as const;
-  if (score < 5) return "medium" as const;
-  if (score < 7) return "high" as const;
-  return "critical" as const;
-}
+const RISK_LABELS: Record<RiskLevel, string> = {
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+  critical: "Critical",
+};
 
-function getRiskLabel(score: number) {
-  if (score < 3) return "Low";
-  if (score < 5) return "Medium";
-  if (score < 7) return "High";
-  return "Critical";
-}
+const RISK_STAT_STYLES: Record<RiskLevel, { bg: string; text: string }> = {
+  low: { bg: "bg-green-500/10", text: "text-green-400" },
+  medium: { bg: "bg-yellow-500/10", text: "text-yellow-400" },
+  high: { bg: "bg-orange-500/10", text: "text-orange-400" },
+  critical: { bg: "bg-red-500/10", text: "text-red-400" },
+};
 
-function getTypeConfig(type: AnalysisType) {
-  return ANALYSIS_TYPES.find((t) => t.value === type)!;
+function getTypeConfig(type: string) {
+  return ANALYSIS_TYPES.find((t) => t.value === type) ?? ANALYSIS_TYPES[0];
 }
 
 function StatCardSkeleton() {
@@ -135,13 +125,15 @@ export default function AnalysisPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [contracts, setContracts] = useState<AvailableContract[]>([]);
   const [selectedContract, setSelectedContract] = useState("");
-  const [selectedAnalysisType, setSelectedAnalysisType] = useState<AnalysisType>("loophole");
+  const [selectedAnalysisType, setSelectedAnalysisType] = useState<AnalysisType>("full");
   const [starting, setStarting] = useState(false);
 
   useEffect(() => {
     async function fetchAnalyses() {
       try {
-        setAnalyses(MOCK_ANALYSES);
+        const res = await fetch("/api/analyses");
+        if (!res.ok) throw new Error("Failed to load analyses");
+        setAnalyses(await res.json());
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load analyses");
       } finally {
@@ -178,7 +170,10 @@ export default function AnalysisPage() {
 
   const stats = useMemo(() => {
     if (analyses.length === 0) return null;
-    const avgRisk = analyses.reduce((sum, a) => sum + a.riskScore, 0) / analyses.length;
+    const scored = analyses.filter((a) => a.riskScore !== null);
+    const avgRisk = scored.length
+      ? scored.reduce((sum, a) => sum + (a.riskScore ?? 0), 0) / scored.length
+      : 0;
     const issueCounts: Record<string, number> = {};
     analyses.forEach((a) => {
       const config = getTypeConfig(a.type);
@@ -187,7 +182,7 @@ export default function AnalysisPage() {
     const mostCommon = Object.entries(issueCounts).sort((a, b) => b[1] - a[1])[0];
     return {
       total: analyses.length,
-      avgRisk: avgRisk.toFixed(1),
+      avgRisk,
       mostCommonType: mostCommon?.[0] ?? "N/A",
       mostCommonCount: mostCommon?.[1] ?? 0,
     };
@@ -205,11 +200,16 @@ export default function AnalysisPage() {
     if (!selectedContract) return;
     setStarting(true);
     try {
-      const res = await fetch(`/api/contracts/${selectedContract}/analyze`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: selectedAnalysisType }),
-      });
+      const res =
+        selectedAnalysisType === "ethics"
+          ? await fetch("/api/analysis/ethics", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ contractId: selectedContract }),
+            })
+          : await fetch(`/api/contracts/${selectedContract}/analyze`, {
+              method: "POST",
+            });
       if (!res.ok) throw new Error("Analysis failed");
       setDialogOpen(false);
       window.location.reload();
@@ -237,13 +237,15 @@ export default function AnalysisPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Analysis</h2>
-          <p className="text-muted-foreground">
+          <h1 className="text-[32px] font-medium leading-tight tracking-[-0.08px] text-black">
+            Analysis
+          </h1>
+          <p className="mt-1 text-base text-[#868686]">
             Review AI-powered contract analyses and risk assessments.
           </p>
         </div>
         <Button
-          className="gap-2 bg-blue-600 hover:bg-blue-700"
+          className="gap-2 bg-[#006A3B] hover:bg-[#005a32]"
           onClick={() => setDialogOpen(true)}
         >
           <Plus className="h-4 w-4" />
@@ -259,8 +261,8 @@ export default function AnalysisPage() {
           <>
             <div className="glass-card p-6 transition-all duration-200 hover:bg-muted">
               <div className="flex items-center justify-between mb-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10">
-                  <BarChart3 className="h-5 w-5 text-blue-400" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#E5F0EB]">
+                  <BarChart3 className="h-5 w-5 text-[#006A3B]" />
                 </div>
                 <TrendingUp className="h-4 w-4 text-green-400" />
               </div>
@@ -271,15 +273,15 @@ export default function AnalysisPage() {
               <div className="flex items-center justify-between mb-4">
                 <div className={cn(
                   "flex h-10 w-10 items-center justify-center rounded-lg",
-                  parseFloat(stats?.avgRisk ?? "0") >= 7 ? "bg-red-500/10" : parseFloat(stats?.avgRisk ?? "0") >= 5 ? "bg-orange-500/10" : parseFloat(stats?.avgRisk ?? "0") >= 3 ? "bg-yellow-500/10" : "bg-green-500/10"
+                  RISK_STAT_STYLES[getRiskLevel(stats?.avgRisk ?? 0)].bg
                 )}>
                   <AlertTriangle className={cn(
                     "h-5 w-5",
-                    parseFloat(stats?.avgRisk ?? "0") >= 7 ? "text-red-400" : parseFloat(stats?.avgRisk ?? "0") >= 5 ? "text-orange-400" : parseFloat(stats?.avgRisk ?? "0") >= 3 ? "text-yellow-400" : "text-green-400"
+                    RISK_STAT_STYLES[getRiskLevel(stats?.avgRisk ?? 0)].text
                   )} />
                 </div>
               </div>
-              <p className="text-3xl font-bold tracking-tight">{stats?.avgRisk ?? "0.0"}</p>
+              <p className="text-3xl font-bold tracking-tight">{formatScore(stats?.avgRisk ?? 0)}</p>
               <p className="text-sm text-muted-foreground mt-1">Average Risk Score</p>
             </div>
             <div className="glass-card p-6 transition-all duration-200 hover:bg-muted">
@@ -312,7 +314,7 @@ export default function AnalysisPage() {
           <Button
             variant={typeFilter === "all" ? "default" : "ghost"}
             size="sm"
-            className={typeFilter === "all" ? "bg-blue-600 hover:bg-blue-700" : "text-muted-foreground hover:text-foreground"}
+            className={typeFilter === "all" ? "bg-[#006A3B] hover:bg-[#005a32]" : "text-muted-foreground hover:text-foreground"}
             onClick={() => setTypeFilter("all")}
           >
             All
@@ -322,7 +324,7 @@ export default function AnalysisPage() {
               key={t.value}
               variant={typeFilter === t.value ? "default" : "ghost"}
               size="sm"
-              className={typeFilter === t.value ? "bg-blue-600 hover:bg-blue-700" : "text-muted-foreground hover:text-foreground"}
+              className={typeFilter === t.value ? "bg-[#006A3B] hover:bg-[#005a32]" : "text-muted-foreground hover:text-foreground"}
               onClick={() => setTypeFilter(t.value)}
             >
               {t.label}
@@ -351,7 +353,7 @@ export default function AnalysisPage() {
           </p>
           {!search && typeFilter === "all" && (
             <Button
-              className="gap-2 bg-blue-600 hover:bg-blue-700"
+              className="gap-2 bg-[#006A3B] hover:bg-[#005a32]"
               onClick={() => setDialogOpen(true)}
             >
               <Plus className="h-4 w-4" />
@@ -376,7 +378,7 @@ export default function AnalysisPage() {
                       <TypeIcon className={cn("h-5 w-5", typeConfig.color)} />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold truncate group-hover:text-blue-400 transition-colors">
+                      <p className="text-sm font-semibold truncate group-hover:text-[#006A3B] transition-colors">
                         {analysis.contractTitle}
                       </p>
                       <p className="text-xs text-muted-foreground">{typeConfig.label}</p>
@@ -393,11 +395,13 @@ export default function AnalysisPage() {
 
                 <div className="flex items-center justify-between">
                   <Badge variant="outline" className="text-muted-foreground">
-                    {analysis.status === "completed" ? "Completed" : analysis.status === "in_progress" ? "In Progress" : "Failed"}
+                    Completed
                   </Badge>
-                  <Badge variant={getRiskVariant(analysis.riskScore)}>
-                    {getRiskLabel(analysis.riskScore)} ({analysis.riskScore.toFixed(1)})
-                  </Badge>
+                  {analysis.riskScore !== null && (
+                    <Badge variant={getRiskLevel(analysis.riskScore)}>
+                      {RISK_LABELS[getRiskLevel(analysis.riskScore)]} ({formatScore(analysis.riskScore)})
+                    </Badge>
+                  )}
                 </div>
               </Link>
             );
@@ -435,28 +439,32 @@ export default function AnalysisPage() {
             <div className="space-y-2">
               <label className="text-sm font-medium">Analysis Type</label>
               <div className="grid grid-cols-2 gap-2">
-                {ANALYSIS_TYPES.map((t) => {
+                {STARTABLE_TYPES.map((t) => {
                   const Icon = t.icon;
                   return (
                     <button
                       key={t.value}
+                      type="button"
                       onClick={() => setSelectedAnalysisType(t.value)}
                       className={cn(
                         "flex items-center gap-2 rounded-lg border p-3 text-sm transition-all",
                         selectedAnalysisType === t.value
-                          ? "border-blue-500/50 bg-blue-500/10 text-foreground"
+                          ? "border-[#66A689]/50 bg-[#E5F0EB] text-foreground"
                           : "border-border bg-muted/50 text-muted-foreground hover:bg-muted/60"
                       )}
                     >
-                      <Icon className={cn("h-4 w-4", t.color)} />
-                      {t.label}
+                      <Icon className={cn("h-4 w-4 shrink-0", t.color)} />
+                      <span className="text-left">
+                        <span className="block">{t.label}</span>
+                        <span className="block text-xs text-muted-foreground">{t.description}</span>
+                      </span>
                     </button>
                   );
                 })}
               </div>
             </div>
             <Button
-              className="w-full bg-blue-600 hover:bg-blue-700 gap-2"
+              className="w-full bg-[#006A3B] hover:bg-[#005a32] gap-2"
               disabled={!selectedContract || starting}
               onClick={handleStartAnalysis}
             >

@@ -2,10 +2,8 @@
 
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
-import { User, Settings, LogOut } from "lucide-react";
+import { Bell, ChevronDown, LogOut, Settings, User } from "lucide-react";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import type { JurisdictionCode } from "@/config/jurisdictions";
 import {
   Select,
   SelectContent,
@@ -20,35 +19,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { JurisdictionCode } from "@/config/jurisdictions";
-import { ThemeToggle } from "@/components/theme-toggle";
-
-const PAGE_TITLES: Record<string, string> = {
-  "/dashboard": "Dashboard",
-  "/contracts": "Contracts",
-  "/analysis": "Analysis",
-  "/drafting": "AI Drafting",
-  "/templates": "Templates",
-  "/analytics": "Analytics",
-  "/settings": "Settings",
-};
-
 const JURISDICTIONS: { value: JurisdictionCode; label: string }[] = [
   { value: "US", label: "US" },
   { value: "IN", label: "IN" },
   { value: "UK", label: "UK" },
 ];
-
-function getPageTitle(pathname: string): string {
-  // Exact match
-  if (PAGE_TITLES[pathname]) {
-    return PAGE_TITLES[pathname];
-  }
-  // Prefix match for nested routes
-  const segment = pathname.split("/")[1];
-  const basePath = segment ? `/${segment}` : pathname;
-  return PAGE_TITLES[basePath] ?? "Clause AI";
-}
 
 interface HeaderProps {
   jurisdiction?: JurisdictionCode;
@@ -61,88 +36,91 @@ export function Header({
 }: HeaderProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const pageTitle = getPageTitle(pathname);
+  const showJurisdiction =
+    pathname.startsWith("/contracts") ||
+    pathname.startsWith("/analysis") ||
+    pathname.startsWith("/drafting");
+
+  const displayName = session?.user?.name ?? "Admin";
+  const initials =
+    displayName
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2) || "U";
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/80 px-6 backdrop-blur-xl dark:bg-muted/50">
-      <h1 className="text-lg font-semibold text-foreground">{pageTitle}</h1>
+    <header className="figma-shadow-header flex h-20 shrink-0 items-center justify-between border-b border-[#E8E8E8] bg-white px-8 py-4">
+      <p className="text-xl text-black">Cycada&apos;s Records</p>
 
-      <div className="flex items-center gap-2 sm:gap-4">
-        <ThemeToggle />
-        <Select
-          value={jurisdiction}
-          onValueChange={(value) =>
-            onJurisdictionChange?.(value as JurisdictionCode)
-          }
+      <div className="flex items-center gap-4">
+        {showJurisdiction && onJurisdictionChange && (
+          <Select
+            value={jurisdiction}
+            onValueChange={(value) =>
+              onJurisdictionChange(value as JurisdictionCode)
+            }
+          >
+            <SelectTrigger className="h-9 w-[100px] border-[#DDDDDD] bg-white text-sm text-[#282828]">
+              <SelectValue placeholder="Region" />
+            </SelectTrigger>
+            <SelectContent>
+              {JURISDICTIONS.map(({ value, label }) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
+        <button
+          type="button"
+          className="flex h-10 w-10 items-center justify-center rounded-lg bg-white shadow-[0px_0px_4px_0px_rgba(94,94,94,0.31)]"
+          aria-label="Notifications"
         >
-          <SelectTrigger className="h-9 w-[100px] border-border bg-muted/40">
-            <SelectValue placeholder="Jurisdiction" />
-          </SelectTrigger>
-          <SelectContent>
-            {JURISDICTIONS.map(({ value, label }) => (
-              <SelectItem key={value} value={value}>
-                {label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <Bell className="h-6 w-6 text-[#006A3B]" />
+        </button>
+
+        <div className="h-9 w-px bg-[#DDDDDD]" />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              className="relative h-9 w-9 rounded-full p-0 hover:bg-accent"
+            <button
+              type="button"
+              className="flex h-12 items-center gap-2 rounded-lg bg-[#F4F7F6] px-3"
             >
-              <Avatar className="h-9 w-9">
-                <AvatarImage
-                  src={session?.user?.image ?? undefined}
-                  alt={session?.user?.name ?? "User"}
-                />
-                <AvatarFallback className="bg-primary/15 text-primary">
-                  {session?.user?.name
-                    ?.split(" ")
-                    .map((n) => n[0])
-                    .join("")
-                    .toUpperCase()
-                    .slice(0, 2) ?? "U"}
-                </AvatarFallback>
-              </Avatar>
-            </Button>
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#006A3B] text-xl text-white">
+                {initials}
+              </span>
+              <span className="text-base text-black">{displayName}</span>
+              <ChevronDown className="h-5 w-5 text-black" />
+            </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            className="w-56 border-border bg-popover"
-          >
+          <DropdownMenuContent align="end" className="w-56">
             <div className="px-2 py-2">
-              <p className="text-sm font-medium text-foreground">
-                {session?.user?.name ?? "User"}
-              </p>
+              <p className="text-sm font-medium">{displayName}</p>
               <p className="text-xs text-muted-foreground">
                 {session?.user?.email ?? ""}
               </p>
             </div>
-            <DropdownMenuSeparator className="bg-border" />
-            <DropdownMenuItem
-              className="cursor-pointer focus:bg-accent"
-              asChild
-            >
-              <a href="/dashboard/profile" className="flex items-center gap-2">
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <a href="/settings" className="flex cursor-pointer items-center gap-2">
                 <User className="h-4 w-4" />
                 Profile
               </a>
             </DropdownMenuItem>
-            <DropdownMenuItem
-              className="cursor-pointer focus:bg-accent"
-              asChild
-            >
-              <a href="/settings" className="flex items-center gap-2">
+            <DropdownMenuItem asChild>
+              <a href="/settings" className="flex cursor-pointer items-center gap-2">
                 <Settings className="h-4 w-4" />
                 Settings
               </a>
             </DropdownMenuItem>
-            <DropdownMenuSeparator className="bg-border" />
+            <DropdownMenuSeparator />
             <DropdownMenuItem
-              className="cursor-pointer text-red-600 focus:bg-red-500/10 focus:text-red-600 dark:text-red-400 dark:focus:text-red-400"
+              className="cursor-pointer text-[#F83446] focus:text-[#F83446]"
               onClick={() => signOut()}
             >
               <LogOut className="mr-2 h-4 w-4" />

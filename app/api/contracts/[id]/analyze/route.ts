@@ -11,6 +11,35 @@ import {
 
 // TODO: Add rate limiting middleware
 
+// Analysis makes one AI call per clause; allow the longest duration the
+// Vercel Hobby plan permits so the function isn't killed mid-run.
+export const maxDuration = 60;
+
+const CLAUSE_CONCURRENCY = 8;
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>
+): Promise<PromiseSettledResult<R>[]> {
+  const results: PromiseSettledResult<R>[] = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const index = next++;
+      try {
+        results[index] = { status: "fulfilled", value: await fn(items[index]) };
+      } catch (reason) {
+        results[index] = { status: "rejected", reason };
+      }
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, worker)
+  );
+  return results;
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -41,35 +70,58 @@ export async function POST(
       data: { status: "parsing" },
     });
 
+    // Whole-contract checks run alongside the per-clause analysis.
+    const contractLevel = Promise.all([
+      detectLoopholes(contract.cleanedText, contract.jurisdiction),
+      assessFairness(contract.cleanedText, contract.jurisdiction),
+    ]);
+    // Prevent an unhandled rejection if this fails before we await it below.
+    contractLevel.catch(() => {});
+
+    const settled = await mapWithConcurrency(
+      contract.clauses,
+      CLAUSE_CONCURRENCY,
+      async (clause) => {
+        const analysis = await analyzeClause(
+          clause.clauseText,
+          contract.jurisdiction,
+          contract.contractType || undefined
+        );
+
+        await db.clause.update({
+          where: { id: clause.id },
+          data: {
+            riskScore: analysis.risk_score,
+            biasScore: analysis.bias_score,
+            strengthScore: analysis.strength_score,
+            analysisJson: JSON.parse(JSON.stringify(analysis)),
+          },
+        });
+
+        return { clauseId: clause.id, analysis };
+      }
+    );
+
     const clauseResults: Array<{
       clauseId: string;
       analysis: ClauseAnalysisResult;
     }> = [];
+    settled.forEach((result, i) => {
+      if (result.status === "fulfilled") {
+        clauseResults.push(result.value);
+      } else {
+        console.error(
+          `Clause analysis failed for clause ${contract.clauses[i].id}:`,
+          result.reason
+        );
+      }
+    });
 
-    for (const clause of contract.clauses) {
-      const analysis = await analyzeClause(
-        clause.clauseText,
-        contract.jurisdiction,
-        contract.contractType || undefined
-      );
-
-      await db.clause.update({
-        where: { id: clause.id },
-        data: {
-          riskScore: analysis.risk_score,
-          biasScore: analysis.bias_score,
-          strengthScore: analysis.strength_score,
-          analysisJson: JSON.parse(JSON.stringify(analysis)),
-        },
-      });
-
-      clauseResults.push({ clauseId: clause.id, analysis });
+    if (contract.clauses.length > 0 && clauseResults.length === 0) {
+      throw new Error("All clause analyses failed");
     }
 
-    const [loopholes, fairness] = await Promise.all([
-      detectLoopholes(contract.cleanedText, contract.jurisdiction),
-      assessFairness(contract.cleanedText, contract.jurisdiction),
-    ]);
+    const [loopholes, fairness] = await contractLevel;
 
     const clauseCount = clauseResults.length || 1;
     const avgRiskScore =

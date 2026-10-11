@@ -5,25 +5,43 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function getRiskColor(score: number): string {
-  if (score <= 25) return "text-risk-low";
-  if (score <= 50) return "text-risk-medium";
-  if (score <= 75) return "text-risk-high";
-  return "text-risk-critical";
+export type RiskLevel = "low" | "medium" | "high" | "critical";
+
+/**
+ * All AI scores (risk, bias, strength, confidence, ...) are on a 0–100 scale,
+ * matching the prompts in ai/prompts.ts and the values stored in the database.
+ */
+export function getRiskLevel(score: number): RiskLevel {
+  if (score < 30) return "low";
+  if (score < 50) return "medium";
+  if (score < 70) return "high";
+  return "critical";
 }
 
-export function getRiskBgColor(score: number): string {
-  if (score <= 25) return "bg-green-500/10 border-green-500/20";
-  if (score <= 50) return "bg-yellow-500/10 border-yellow-500/20";
-  if (score <= 75) return "bg-orange-500/10 border-orange-500/20";
-  return "bg-red-500/10 border-red-500/20";
+/** For "higher is better" scores such as strength, fairness or ethics. */
+export function getStrengthLevel(score: number): RiskLevel {
+  if (score >= 70) return "low";
+  if (score >= 50) return "medium";
+  if (score >= 30) return "high";
+  return "critical";
 }
 
-export function getRiskLabel(score: number): string {
-  if (score <= 25) return "Low Risk";
-  if (score <= 50) return "Medium Risk";
-  if (score <= 75) return "High Risk";
-  return "Critical Risk";
+export const RISK_LEVEL_LABELS: Record<RiskLevel, string> = {
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+  critical: "Critical",
+};
+
+export const RISK_LEVEL_COLORS: Record<RiskLevel, string> = {
+  low: "#22c55e",
+  medium: "#eab308",
+  high: "#f97316",
+  critical: "#ef4444",
+};
+
+export function formatScore(score: number): string {
+  return Math.round(score).toString();
 }
 
 export function formatDate(date: Date | string): string {
@@ -34,15 +52,24 @@ export function formatDate(date: Date | string): string {
   }).format(new Date(date));
 }
 
-export function truncate(str: string, length: number): string {
-  if (str.length <= length) return str;
-  return str.slice(0, length) + "...";
-}
-
-export function slugify(str: string): string {
-  return str
-    .toLowerCase()
-    .replace(/[^\w\s-]/g, "")
-    .replace(/[\s_-]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+/** Runs `fn` over `items` with at most `limit` calls in flight. */
+export async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>
+): Promise<PromiseSettledResult<R>[]> {
+  const results: PromiseSettledResult<R>[] = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const index = next++;
+      try {
+        results[index] = { status: "fulfilled", value: await fn(items[index]) };
+      } catch (reason) {
+        results[index] = { status: "rejected", reason };
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
 }

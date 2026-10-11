@@ -1,12 +1,25 @@
 /**
- * Document parsing pipeline for legal contract analysis.
- * Supports PDF, DOCX, TXT, RTF, and MD file types.
+ * Text extraction and clause segmentation for uploaded documents.
+ * Pure functions only — OCR (which calls the AI) lives in lib/ingest.ts.
  */
 
-export interface ParsedDocument {
-  rawText: string;
-  cleanedText: string;
-  clauses: ParsedClause[];
+export const TEXT_EXTENSIONS = ["pdf", "docx", "doc", "odt", "rtf", "txt", "md", "html", "htm"] as const;
+export const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "webp"] as const;
+export const SUPPORTED_EXTENSIONS = [...TEXT_EXTENSIONS, ...IMAGE_EXTENSIONS] as const;
+
+export type SupportedExtension = (typeof SUPPORTED_EXTENSIONS)[number];
+
+export function getExtension(fileName: string): string {
+  const dot = fileName.lastIndexOf(".");
+  return dot === -1 ? "" : fileName.slice(dot + 1).toLowerCase();
+}
+
+export function isSupportedExtension(ext: string): ext is SupportedExtension {
+  return (SUPPORTED_EXTENSIONS as readonly string[]).includes(ext);
+}
+
+export function isImageExtension(ext: string) {
+  return (IMAGE_EXTENSIONS as readonly string[]).includes(ext);
 }
 
 export interface ParsedClause {
@@ -16,298 +29,462 @@ export interface ParsedClause {
   category: string | null;
 }
 
-const SUPPORTED_FILE_TYPES = ["pdf", "docx", "txt", "rtf", "md"] as const;
-type SupportedFileType = (typeof SUPPORTED_FILE_TYPES)[number];
+// ─── Extraction ──────────────────────────────────────────────────────────────
 
-const CATEGORY_KEYWORDS: Record<string, string[]> = {
-  Payment: ["payment", "fee", "invoice", "billing", "remittance", "consideration"],
-  Termination: ["termination", "terminate", "expiration", "cancellation", "rescission"],
-  Liability: ["liability", "liable", "damages", "limitation of liability", "cap on damages"],
-  Confidentiality: ["confidential", "confidentiality", "non-disclosure", "nda", "proprietary"],
-  IP: ["intellectual property", "copyright", "patent", "trademark", "ip rights", "ownership"],
-  "Dispute Resolution": ["dispute", "arbitration", "mediation", "litigation", "jurisdiction"],
-  "Force Majeure": ["force majeure", "act of god", "unforeseeable", "beyond control"],
-  "Governing Law": ["governing law", "choice of law", "applicable law", "jurisdiction"],
-  Indemnification: ["indemnify", "indemnification", "hold harmless", "indemnity"],
-  Warranty: ["warranty", "warrant", "representation", "disclaimer"],
-  "Non-Compete": ["non-compete", "noncompetition", "restrictive covenant", "competition"],
-  Assignment: ["assignment", "assign", "transfer", "novation"],
-  Amendment: ["amendment", "modification", "amend", "change"],
-  Severability: ["severability", "severable", "invalidity"],
-  Notices: ["notice", "notices", "notification", "communicate"],
-  General: ["general provisions", "miscellaneous", "entire agreement", "interpretation"],
-};
-
-const SECTION_PATTERNS = [
-  /^(?:Article\s+[IVXLCDM]+|[IVXLCDM]+\.)\s*(?:[-–—:]\s*)?(.+)?$/im,
-  /^(?:Section\s+)?(\d+(?:\.\d+)*\.?)\s*(?:[-–—:]\s*)?(.+)?$/im,
-  /^(?:Clause\s+)?(\d+(?:\.\d+)*)\s*(?:[-–—:]\s*)?(.+)?$/im,
-  /^(?:CLAUSE\s+)?(\d+(?:\.\d+)*)\s*(?:[-–—:]\s*)?(.+)?$/im,
-  /^(\d{1,3}\.\d{1,3}(?:\.\d{1,3})?)\s+(?:[-–—:]\s*)?(.+)?$/im,
-  /^(\d{1,3}\.)\s+(?:[-–—:]\s*)?(.+)?$/im,
-  /^[a-z]\)\s*/im,
-  /^\([a-z]\)\s*/im,
-];
-
-const PAGE_NUMBER_PATTERN = /^\s*(?:page\s+)?\d+\s*$/gim;
-const HEADER_FOOTER_PATTERN = /^(?:CONFIDENTIAL|DRAFT|Page \d+ of \d+|©|Copyright|\d{4}\s*[-–]\s*\d{4})\s*$/gim;
-
-async function parsePDF(buffer: Buffer): Promise<string> {
-  const pdfParse = (await import("pdf-parse")).default;
-  const data = await pdfParse(buffer);
-  return data.text;
+function decodeEntities(text: string) {
+  const named: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
+  return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (match, entity: string) => {
+    if (entity[0] === "#") {
+      const code = entity[1].toLowerCase() === "x" ? parseInt(entity.slice(2), 16) : parseInt(entity.slice(1), 10);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : match;
+    }
+    return named[entity.toLowerCase()] ?? match;
+  });
 }
 
-async function parseDOCX(buffer: Buffer): Promise<string> {
-  const mammoth = await import("mammoth");
-  const result = await mammoth.extractRawText({ buffer });
-  return result.value;
+function htmlToText(html: string) {
+  return decodeEntities(
+    html
+      .replace(/<(script|style|head)[\s\S]*?<\/\1>/gi, " ")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/(p|div|h[1-6]|li|tr|section|article|blockquote)>/gi, "\n")
+      .replace(/<[^>]+>/g, " ")
+  );
 }
 
-function parsePlainText(buffer: Buffer): string {
+function decodeTextBuffer(buffer: Buffer) {
+  if (buffer[0] === 0xff && buffer[1] === 0xfe) return buffer.subarray(2).toString("utf16le");
+  if (buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf) return buffer.subarray(3).toString("utf-8");
   return buffer.toString("utf-8");
 }
 
-function parseRTF(buffer: Buffer): string {
-  const raw = buffer.toString("utf-8");
-  return raw
-    .replace(/\\[a-z]+\d*\s?/g, " ")
-    .replace(/\{[^}]*\}/g, " ")
-    .replace(/[{}]/g, " ")
-    .replace(/\\\s*/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+const RTF_SKIP_DESTINATIONS = new Set([
+  "fonttbl", "colortbl", "stylesheet", "info", "pict", "object", "header", "footer",
+  "headerl", "headerr", "footerl", "footerr", "generator", "xmlnstbl", "listtable",
+  "listoverridetable", "rsidtbl", "themedata", "colorschememapping", "datastore",
+  "latentstyles", "filetbl", "revtbl", "fldinst",
+]);
+const RTF_SYMBOLS: Record<string, string> = {
+  par: "\n", line: "\n", sect: "\n", page: "\n", row: "\n", tab: " ", cell: " ",
+  emdash: "—", endash: "–", bullet: "•", lquote: "‘", rquote: "’", ldblquote: "“", rdblquote: "”",
+};
+
+/** Minimal RTF reader: keeps visible text, drops formatting and metadata groups. */
+function rtfToText(rtf: string) {
+  let out = "";
+  let skip = false;
+  let unicodeSkip = 1;
+  const stack: boolean[] = [];
+  let i = 0;
+
+  while (i < rtf.length) {
+    const ch = rtf[i];
+    if (ch === "{") {
+      stack.push(skip);
+      i++;
+    } else if (ch === "}") {
+      skip = stack.pop() ?? false;
+      i++;
+    } else if (ch === "\\") {
+      const next = rtf[i + 1];
+      if (next === "\\" || next === "{" || next === "}") {
+        if (!skip) out += next;
+        i += 2;
+      } else if (next === "'") {
+        if (!skip) out += String.fromCharCode(parseInt(rtf.slice(i + 2, i + 4), 16));
+        i += 4;
+      } else if (next === "*") {
+        skip = true;
+        i += 2;
+      } else {
+        const match = /^([a-zA-Z]+)(-?\d+)? ?/.exec(rtf.slice(i + 1, i + 40));
+        if (!match) {
+          if (!skip && next === "~") out += " ";
+          if (!skip && (next === "\n" || next === "\r")) out += "\n";
+          i += 2;
+          continue;
+        }
+        const [token, word, param] = match;
+        i += 1 + token.length;
+        if (RTF_SKIP_DESTINATIONS.has(word)) {
+          skip = true;
+        } else if (skip) {
+          continue;
+        } else if (word === "u" && param) {
+          let code = parseInt(param, 10);
+          if (code < 0) code += 65536;
+          out += String.fromCharCode(code);
+          i += rtf[i] === "\\" && rtf[i + 1] === "'" ? 4 : unicodeSkip;
+        } else if (word === "uc" && param) {
+          unicodeSkip = parseInt(param, 10);
+        } else if (RTF_SYMBOLS[word]) {
+          out += RTF_SYMBOLS[word];
+        }
+      }
+    } else {
+      if (!skip && ch !== "\r" && ch !== "\n") out += ch;
+      i++;
+    }
+  }
+  return out;
+}
+
+async function odtToText(buffer: Buffer) {
+  const JSZip = (await import("jszip")).default;
+  const zip = await JSZip.loadAsync(buffer);
+  const xml = await zip.file("content.xml")?.async("string");
+  if (!xml) throw new Error("Invalid ODT file");
+  return decodeEntities(
+    xml
+      .replace(/<text:(tab|s)\s*\/>/g, " ")
+      .replace(/<text:line-break\s*\/>/g, "\n")
+      .replace(/<\/text:(p|h)>/g, "\n")
+      .replace(/<[^>]+>/g, "")
+  );
 }
 
 /**
- * Cleans raw extracted text by removing excessive whitespace,
- * normalizing line endings, and stripping common artifacts.
+ * Extracts the raw text of a document. Images return empty text (they need OCR).
+ * Throws if the file cannot be read.
+ */
+export async function extractText(
+  buffer: Buffer,
+  ext: SupportedExtension
+): Promise<{ text: string; pageCount?: number }> {
+  switch (ext) {
+    case "pdf": {
+      const pdfParse = (await import("pdf-parse")).default;
+      const data = await pdfParse(buffer);
+      return { text: data.text, pageCount: data.numpages };
+    }
+    case "docx": {
+      const mammoth = await import("mammoth");
+      return { text: (await mammoth.extractRawText({ buffer })).value };
+    }
+    case "doc": {
+      const WordExtractor = (await import("word-extractor")).default;
+      const doc = await new WordExtractor().extract(buffer);
+      return { text: doc.getBody() };
+    }
+    case "odt":
+      return { text: await odtToText(buffer) };
+    case "rtf":
+      return { text: rtfToText(buffer.toString("latin1")) };
+    case "html":
+    case "htm":
+      return { text: htmlToText(decodeTextBuffer(buffer)) };
+    case "txt":
+    case "md":
+      return { text: decodeTextBuffer(buffer) };
+    default:
+      return { text: "" };
+  }
+}
+
+/** A PDF with almost no extractable text is a scan and needs OCR. */
+export function isLikelyScanned(text: string, pageCount = 1) {
+  const chars = text.replace(/\s/g, "").length;
+  return chars < 100 || chars / Math.max(pageCount, 1) < 40;
+}
+
+// ─── Cleaning ────────────────────────────────────────────────────────────────
+
+const NOISE_LINE =
+  /^(?:(?:page|página|pagina)\s*\d+(?:\s*(?:of|sur|de|\/)\s*\d+)?|\d{1,4}|-\s*\d+\s*-|\d+\s*\/\s*\d+)$/i;
+
+/**
+ * Normalizes whitespace, drops page numbers and re-joins lines that a PDF
+ * wrapped mid-sentence, keeping real line breaks (headings, list items).
  */
 export function cleanText(rawText: string): string {
-  if (!rawText || typeof rawText !== "string") return "";
+  if (!rawText) return "";
 
-  let cleaned = rawText
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n")
-    .replace(/\t/g, " ")
-    .replace(/\f/g, "\n");
-
-  cleaned = cleaned.replace(PAGE_NUMBER_PATTERN, "\n");
-  cleaned = cleaned.replace(HEADER_FOOTER_PATTERN, "\n");
-
-  cleaned = cleaned
+  const lines = rawText
+    .replace(/\r\n?/g, "\n")
+    .replace(/[   \t\f\v]/g, " ")
+    .replace(/[​-‍﻿]/g, "")
     .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .join("\n");
+    .map((line) => line.replace(/ {2,}/g, " ").trim())
+    .filter((line) => line && !NOISE_LINE.test(line));
 
-  cleaned = cleaned.replace(/\n{3,}/g, "\n\n").replace(/[ \t]+/g, " ");
-
-  return cleaned.trim();
+  const merged: string[] = [];
+  for (const line of lines) {
+    const prev = merged[merged.length - 1];
+    if (prev && !/[.:;!?)\]"”»]$/.test(prev) && /^[a-zà-ÿ(]/.test(line)) {
+      merged[merged.length - 1] = `${prev} ${line}`;
+    } else {
+      merged.push(line);
+    }
+  }
+  return merged.join("\n").trim();
 }
 
-function categorizeClause(text: string): string | null {
-  const lowerText = text.toLowerCase();
-  const combined = `${text} ${lowerText}`;
+// ─── Clause segmentation ─────────────────────────────────────────────────────
 
-  for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+type HeadingKind = "keyword" | "number" | "roman" | "caps";
+
+interface Heading {
+  line: number;
+  kind: HeadingKind;
+  level: number;
+  number?: number;
+  rest: string;
+}
+
+const KEYWORD_HEADING =
+  /^(?:article|art\.|artigo|section|sec\.|seção|secção|clause|cláusula|clausula|chapitre|chapter|capítulo|titre|título|schedule|annexe?|anexo|exhibit|appendix)\s+(?:\d+(?:\.\d+)*|[ivxlcdm]{1,6}|premier|première|primeir[ao]|segund[ao]|terceir[ao]|quart[ao]|quint[ao]|sext[ao]|s[ée]tim[ao]|oitav[ao]|non[ao]|d[ée]cim[ao]|vig[ée]sim[ao]|[a-z])[ºª°]?/i;
+const NUMBER_HEADING = /^(\d{1,2})[ºª°]?((?:\.\d{1,2}){0,3})(\.|\))?\s+(.+)$/;
+const ROMAN_HEADING = /^([IVXLC]{1,6})(?:\.|\)|\s*[-–—])\s*(.+)$/;
+const STARTS_UPPER = /^[A-ZÀ-ÝÇ"“«(]/;
+const MAX_HEADING_LINE = 160;
+
+function detectHeading(line: string, index: number): Heading | null {
+  const keyword = KEYWORD_HEADING.exec(line);
+  if (keyword) {
+    const rest = line.slice(keyword[0].length);
+    if (rest === "" || /^\s*[-–—:.)]/.test(rest) || /^\s+[A-ZÀ-ÝÇ"“«(]/.test(rest)) {
+      return { line: index, kind: "keyword", level: 1, rest: rest.replace(/^\s*[-–—:.)]?\s*/, "") };
+    }
+  }
+
+  const numbered = NUMBER_HEADING.exec(line);
+  if (numbered && line.length <= 2000) {
+    const [, major, subs, terminator, rest] = numbered;
+    const isAllCaps = rest === rest.toUpperCase() && /[A-ZÀ-Ý]{3}/.test(rest);
+    if ((subs || terminator || isAllCaps) && STARTS_UPPER.test(rest)) {
+      return {
+        line: index,
+        kind: "number",
+        level: 1 + (subs.match(/\./g)?.length ?? 0),
+        number: Number(major),
+        rest,
+      };
+    }
+  }
+
+  if (line.length <= MAX_HEADING_LINE) {
+    const roman = ROMAN_HEADING.exec(line);
+    if (roman && STARTS_UPPER.test(roman[2])) {
+      return { line: index, kind: "roman", level: 1, rest: roman[2] };
+    }
+  }
+
+  const letters = line.replace(/[^A-Za-zÀ-ÿ]/g, "");
+  if (
+    line.length >= 4 &&
+    line.length <= 80 &&
+    letters.length >= 4 &&
+    letters.length / line.length >= 0.6 &&
+    line === line.toUpperCase() &&
+    !/[,;]$/.test(line)
+  ) {
+    return { line: index, kind: "caps", level: 1, rest: line };
+  }
+  return null;
+}
+
+/** Keeps a run of top-level numbered headings that count up 1, 2, 3, … */
+function sequentialNumbers(headings: Heading[]) {
+  const kept: Heading[] = [];
+  for (const heading of headings) {
+    const last = kept[kept.length - 1];
+    if (!last || heading.number === (last.number ?? 0) + 1) kept.push(heading);
+  }
+  return kept;
+}
+
+function chooseBoundaries(headings: Heading[]): Heading[] {
+  const of = (kind: HeadingKind, maxLevel = 1) =>
+    headings.filter((h) => h.kind === kind && h.level <= maxLevel);
+
+  const keyword = of("keyword");
+  if (keyword.length >= 2) return keyword;
+
+  const topNumbers = of("number");
+  const sequential = sequentialNumbers(topNumbers);
+  if (sequential.length >= 2) return sequential;
+  if (topNumbers.length >= 2) return topNumbers;
+
+  const twoLevelNumbers = of("number", 2);
+  if (twoLevelNumbers.length >= 2) return twoLevelNumbers;
+
+  const roman = of("roman");
+  if (roman.length >= 2) return roman;
+
+  const caps = of("caps");
+  return caps.length >= 3 ? caps : [];
+}
+
+function toTitleCase(text: string) {
+  return text.toLowerCase().replace(/(^|[\s(\-–—/])(\p{L})/gu, (_, sep, ch) => sep + ch.toUpperCase());
+}
+
+function headingTitle(heading: Heading, line: string, nextLine?: string): string | null {
+  let title = heading.kind === "caps" ? line : heading.rest.trim();
+
+  if (!title && heading.kind === "keyword") {
+    // "ARTICLE 1" alone on a line, title on the next line.
+    title =
+      nextLine && nextLine.length <= 60 && !/[.;:]$/.test(nextLine) ? nextLine : line.trim();
+  } else if (title.length > 80) {
+    const cut = title.search(/[.:]\s/);
+    title = cut > 0 && cut <= 80 ? title.slice(0, cut) : "";
+  }
+
+  title = title.replace(/[\s.:–—-]+$/, "").trim();
+  if (!title) return null;
+  if (title === title.toUpperCase() && /\p{L}{2}/u.test(title)) title = toTitleCase(title);
+  return title.length > 120 ? `${title.slice(0, 117)}…` : title;
+}
+
+/** Splits text into roughly `size`-character chunks at line boundaries. */
+function chunkLines(text: string, size: number): string[] {
+  const chunks: string[] = [];
+  let current = "";
+  for (const line of text.split("\n")) {
+    if (current && current.length + line.length > size) {
+      chunks.push(current);
+      current = "";
+    }
+    if (line.length > size * 1.5) {
+      // Very long single line: split at sentence ends.
+      for (const sentence of line.match(/[^.!?]+[.!?]+["”»)]?\s*|[^.!?]+$/g) ?? [line]) {
+        if (current && current.length + sentence.length > size) {
+          chunks.push(current);
+          current = "";
+        }
+        current += sentence;
+      }
+    } else {
+      current = current ? `${current}\n${line}` : line;
+    }
+  }
+  if (current.trim()) chunks.push(current);
+  return chunks.map((c) => c.trim()).filter(Boolean);
+}
+
+const CATEGORY_KEYWORDS: [string, string[]][] = [
+  ["Definitions", ["definition", "définition", "definições", "interpretation", "interprétation"]],
+  ["Payment", ["payment", "fees", "invoice", "price", "remuneration", "paiement", "prix", "facture", "rémunération", "pagamento", "preço", "remuneração", "honorários", "fatura"]],
+  ["Term & Termination", ["termination", "terminate", "duration", "renewal", "résiliation", "durée", "rescisão", "resilição", "vigência", "renovação"]],
+  ["Liability", ["liability", "liable", "damages", "responsabilité", "dommages", "responsabilidade", "danos"]],
+  ["Indemnification", ["indemnif", "hold harmless", "indemnité", "indeniza"]],
+  ["Confidentiality", ["confidential", "non-disclosure", "confidentialité", "sigilo", "confidencial"]],
+  ["Intellectual Property", ["intellectual property", "copyright", "patent", "trademark", "propriété intellectuelle", "droit d'auteur", "propriedade intelectual", "direitos autorais"]],
+  ["Data Protection", ["personal data", "data protection", "gdpr", "privacy", "données personnelles", "rgpd", "dados pessoais", "lgpd", "privacidade"]],
+  ["Dispute Resolution", ["dispute", "arbitration", "mediation", "litige", "arbitrage", "médiation", "litígio", "arbitragem", "mediação", "foro"]],
+  ["Governing Law", ["governing law", "applicable law", "loi applicable", "droit applicable", "lei aplicável", "legislação aplicável"]],
+  ["Force Majeure", ["force majeure", "act of god", "força maior", "caso fortuito"]],
+  ["Warranty", ["warrant", "representation", "garantie", "garantia"]],
+  ["Non-Compete", ["non-compete", "non-competition", "non-solicit", "non-concurrence", "não concorrência", "exclusivity", "exclusivité", "exclusividade"]],
+  ["Assignment", ["assignment", "assign", "cession", "cessão"]],
+  ["Notices", ["notices", "notification", "notificação", "notificações"]],
+  ["General", ["miscellaneous", "entire agreement", "severability", "amendment", "dispositions générales", "disposições gerais"]],
+];
+
+function categorize(title: string | null, text: string): string | null {
+  const titleLower = (title ?? "").toLowerCase();
+  const textLower = text.slice(0, 600).toLowerCase();
+  let best: string | null = null;
+  let bestScore = 0;
+  for (const [category, keywords] of CATEGORY_KEYWORDS) {
+    let score = 0;
     for (const keyword of keywords) {
-      if (combined.includes(keyword.toLowerCase())) {
-        return category;
-      }
+      if (titleLower.includes(keyword)) score += 3;
+      if (textLower.includes(keyword)) score += 1;
+    }
+    if (score > bestScore) {
+      best = category;
+      bestScore = score;
     }
   }
-  return null;
+  return best;
 }
 
-function extractClauseTitle(firstLine: string, fullText: string): string | null {
-  const trimmed = firstLine.trim();
-  if (!trimmed || trimmed.length > 200) return null;
+const MIN_CLAUSE_CHARS = 120;
+const MAX_CLAUSE_CHARS = 5000;
+const CHUNK_CHARS = 2000;
+const MAX_CLAUSES = 150;
 
-  const titleMatch = trimmed.match(/^[\d.a-zA-Z)\]]+\s*[-–—:]\s*(.+)$/);
-  if (titleMatch) {
-    const title = titleMatch[1].trim();
-    return title.length > 0 && title.length <= 200 ? title : null;
-  }
-
-  const shortLine = trimmed.length <= 100 ? trimmed : trimmed.slice(0, 100);
-  const words = shortLine.split(/\s+/);
-  if (words.length <= 10 && !shortLine.endsWith(".")) {
-    return shortLine;
-  }
-  return null;
+interface Segment {
+  title: string | null;
+  text: string;
 }
 
-function findSectionBoundaries(text: string): Array<{ index: number; match: RegExpMatchArray }> {
-  const boundaries: Array<{ index: number; match: RegExpMatchArray }> = [];
-  const lines = text.split("\n");
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-
-    for (const pattern of SECTION_PATTERNS) {
-      const match = trimmed.match(pattern);
-      if (match && match[0].length <= 150) {
-        boundaries.push({ index: i, match });
-        break;
-      }
-    }
-  }
-
-  return boundaries;
-}
-
-/**
- * Splits cleaned text into structured clauses based on section markers.
- * Falls back to paragraph splitting if no sections are detected.
- */
+/** Splits cleaned text into clauses using the document's own heading structure. */
 export function splitIntoClauses(cleanedText: string): ParsedClause[] {
-  if (!cleanedText || typeof cleanedText !== "string") {
-    return [
-      {
-        clauseNumber: 1,
-        clauseTitle: null,
-        clauseText: "",
-        category: null,
-      },
-    ];
-  }
+  if (!cleanedText.trim()) return [];
 
-  const boundaries = findSectionBoundaries(cleanedText);
   const lines = cleanedText.split("\n");
+  const headings: Heading[] = [];
+  lines.forEach((line, i) => {
+    const heading = detectHeading(line, i);
+    if (heading) headings.push(heading);
+  });
+  const boundaries = chooseBoundaries(headings);
 
+  let segments: Segment[] = [];
   if (boundaries.length === 0) {
-    const paragraphs = cleanedText
-      .split(/\n\n+/)
-      .map((p) => p.trim())
-      .filter((p) => p.length > 0);
-
-    if (paragraphs.length === 0) {
-      return [
-        {
-          clauseNumber: 1,
-          clauseTitle: null,
-          clauseText: cleanedText,
-          category: categorizeClause(cleanedText),
-        },
-      ];
-    }
-
-    return paragraphs.map((text, idx) => ({
-      clauseNumber: idx + 1,
-      clauseTitle: null,
-      clauseText: text,
-      category: categorizeClause(text),
-    }));
-  }
-
-  const clauses: ParsedClause[] = [];
-
-  for (let i = 0; i < boundaries.length; i++) {
-    const startLine = boundaries[i].index;
-    const endLine = i < boundaries.length - 1 ? boundaries[i + 1].index : lines.length;
-    const clauseLines = lines.slice(startLine, endLine);
-    const clauseText = clauseLines.join("\n").trim();
-
-    if (!clauseText) continue;
-
-    const firstLine = clauseLines[0] ?? "";
-    const clauseTitle = extractClauseTitle(firstLine, clauseText);
-
-    clauses.push({
-      clauseNumber: clauses.length + 1,
-      clauseTitle,
-      clauseText,
-      category: categorizeClause(clauseText),
+    segments = chunkLines(cleanedText, CHUNK_CHARS).map((text) => ({ title: null, text }));
+  } else {
+    const preamble = lines.slice(0, boundaries[0].line).join("\n").trim();
+    if (preamble) segments.push({ title: "Preamble", text: preamble });
+    boundaries.forEach((boundary, i) => {
+      const end = i + 1 < boundaries.length ? boundaries[i + 1].line : lines.length;
+      segments.push({
+        title: headingTitle(boundary, lines[boundary.line], lines[boundary.line + 1]),
+        text: lines.slice(boundary.line, end).join("\n").trim(),
+      });
     });
   }
 
-  if (clauses.length === 0) {
-    return [
-      {
-        clauseNumber: 1,
-        clauseTitle: null,
-        clauseText: cleanedText,
-        category: categorizeClause(cleanedText),
-      },
-    ];
+  // Fold heading-only fragments into the clause that follows (or precedes).
+  const merged: Segment[] = [];
+  let carry: Segment | null = null;
+  for (const segment of segments) {
+    const current: Segment = carry
+      ? { title: carry.title ?? segment.title, text: `${carry.text}\n${segment.text}` }
+      : segment;
+    carry = null;
+    if (current.text.length < MIN_CLAUSE_CHARS) carry = current;
+    else merged.push(current);
+  }
+  if (carry) {
+    const last = merged[merged.length - 1];
+    if (last) last.text = `${last.text}\n${carry.text}`;
+    else merged.push(carry);
   }
 
-  return clauses;
+  // Split oversized clauses so analysis and chat retrieval stay granular.
+  let result: Segment[] = merged.flatMap((segment) =>
+    segment.text.length <= MAX_CLAUSE_CHARS
+      ? [segment]
+      : chunkLines(segment.text, CHUNK_CHARS).map((text, i) => ({
+          title: i === 0 ? segment.title : segment.title ? `${segment.title} (cont.)` : null,
+          text,
+        }))
+  );
+
+  // Bound the clause count for very long documents.
+  while (result.length > MAX_CLAUSES) {
+    const pairs: Segment[] = [];
+    for (let i = 0; i < result.length; i += 2) {
+      const [a, b] = [result[i], result[i + 1]];
+      pairs.push(b ? { title: a.title ?? b.title, text: `${a.text}\n${b.text}` } : a);
+    }
+    result = pairs;
+  }
+
+  return result.map((segment, i) => ({
+    clauseNumber: i + 1,
+    clauseTitle: segment.title,
+    clauseText: segment.text,
+    category: categorize(segment.title, segment.text),
+  }));
 }
 
-function normalizeFileType(fileType: string): SupportedFileType | null {
-  const normalized = fileType.toLowerCase().replace(/^\./, "");
-  return SUPPORTED_FILE_TYPES.includes(normalized as SupportedFileType)
-    ? (normalized as SupportedFileType)
-    : null;
-}
-
-async function extractRawText(buffer: Buffer, fileType: SupportedFileType): Promise<string> {
-  switch (fileType) {
-    case "pdf":
-      return parsePDF(buffer);
-    case "docx":
-      return parseDOCX(buffer);
-    case "txt":
-    case "md":
-      return parsePlainText(buffer);
-    case "rtf":
-      return parseRTF(buffer);
-    default:
-      throw new Error(`Unsupported file type: ${fileType}`);
-  }
-}
-
-/**
- * Parses a document buffer and returns structured content with clauses.
- * Handles PDF, DOCX, TXT, RTF, and MD formats.
- */
-export async function parseDocument(
-  buffer: Buffer,
-  fileType: string
-): Promise<ParsedDocument> {
-  const normalizedType = normalizeFileType(fileType);
-
-  if (!normalizedType) {
-    throw new Error(
-      `Unsupported file type: "${fileType}". Supported types: ${SUPPORTED_FILE_TYPES.join(", ")}`
-    );
-  }
-
-  let rawText: string;
-
-  try {
-    rawText = await extractRawText(buffer, normalizedType);
-  } catch {
-    rawText = buffer.toString("utf-8");
-  }
-
-  if (!rawText || typeof rawText !== "string") {
-    rawText = "";
-  }
-
+/** Cleans raw text and splits it into clauses. */
+export function structureText(rawText: string) {
   const cleanedText = cleanText(rawText);
-  let clauses: ParsedClause[];
-
-  try {
-    clauses = splitIntoClauses(cleanedText);
-  } catch {
-    clauses = [
-      {
-        clauseNumber: 1,
-        clauseTitle: null,
-        clauseText: cleanedText || rawText,
-        category: null,
-      },
-    ];
-  }
-
-  return {
-    rawText,
-    cleanedText,
-    clauses,
-  };
+  return { cleanedText, clauses: splitIntoClauses(cleanedText) };
 }

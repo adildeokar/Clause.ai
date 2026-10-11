@@ -2,24 +2,24 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
-import { Shield, Loader2 } from "lucide-react";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { Loader2 } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [phase, setPhase] = useState<"idle" | "signing" | "welcome">("idle");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setLoading(true);
+    setPhase("signing");
 
     try {
       const result = await signIn("credentials", {
@@ -30,89 +30,100 @@ export default function LoginPage() {
 
       if (result?.error) {
         setError(result.error);
+        setPhase("idle");
       } else {
-        window.location.href = "/dashboard";
+        setPhase("welcome");
+        setTimeout(() => {
+          window.location.href = "/dashboard";
+        }, 800);
       }
     } catch {
       setError("An unexpected error occurred");
+      setPhase("idle");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background relative overflow-hidden">
-      <div className="absolute right-4 top-4 z-10 sm:right-6 sm:top-6">
-        <ThemeToggle />
+    <div className="relative flex min-h-screen flex-col items-center justify-center bg-white">
+      <div className="flex flex-col items-center gap-2">
+        <h1 className="text-[40px] font-medium leading-none tracking-[0.5px] text-black">
+          Clause.Ai
+        </h1>
+        {phase === "signing" && (
+          <p className="text-base text-[#868686]">logging in...</p>
+        )}
+        {phase === "welcome" && (
+          <p className="text-base font-medium text-[#006A3B]">Welcome!</p>
+        )}
       </div>
-      <div className="absolute inset-0 bg-gradient-to-br from-blue-600/5 via-transparent to-purple-600/5" />
-      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-blue-600/5 rounded-full blur-3xl" />
 
-      <div className="relative w-full max-w-md mx-auto px-6">
-        <div className="glass-card rounded-2xl p-8">
-          <div className="flex flex-col items-center mb-8">
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
-              <Shield className="h-6 w-6 text-primary" />
-            </div>
-            <h1 className="text-2xl font-bold gradient-text">Clause AI</h1>
-            <p className="text-sm text-muted-foreground mt-1">
+      <div className="absolute bottom-12 left-1/2 w-full max-w-md -translate-x-1/2 px-6">
+        {phase === "idle" && (
+          <form
+            onSubmit={handleSubmit}
+            className="rounded-xl border border-[#E8E8E8] bg-white p-8 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.05)]"
+          >
+            <p className="mb-6 text-center text-sm text-[#868686]">
               Sign in to your account
             </p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@company.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
-
-            {error && (
-              <div className="text-sm text-red-700 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-2 dark:text-red-400 dark:border-red-400/20">
-                {error}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-[#4B4B4B]">
+                  Email
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="you@company.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="border-[#DDDDDD] focus-visible:ring-[#006A3B]"
+                />
               </div>
-            )}
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-[#4B4B4B]">
+                  Password
+                </Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="border-[#DDDDDD] focus-visible:ring-[#006A3B]"
+                />
+              </div>
 
-            <Button
-              type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-500"
-              disabled={loading}
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Signing in...
-                </>
-              ) : (
-                "Sign In"
+              {error && (
+                <div className="rounded border border-[#FC7F79] bg-[#FFF0EE] px-4 py-2 text-sm text-[#F83446]">
+                  {error}
+                </div>
               )}
-            </Button>
-          </form>
 
-          <div className="mt-6 pt-6 border-t border-border">
-            <p className="text-xs text-muted-foreground text-center">
+              <Button
+                type="submit"
+                className="w-full bg-[#006A3B] hover:bg-[#005a32]"
+                disabled={loading}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Signing in...
+                  </>
+                ) : (
+                  "Sign In"
+                )}
+              </Button>
+            </div>
+            <p className="mt-6 border-t border-[#E8E8E8] pt-6 text-center text-xs text-[#868686]">
               Contact your administrator for account access
             </p>
-          </div>
-        </div>
+          </form>
+        )}
       </div>
     </div>
   );

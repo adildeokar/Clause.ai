@@ -49,7 +49,9 @@ export async function POST(req: NextRequest) {
         userId,
         analysisType: "ethics",
         resultJson: JSON.parse(JSON.stringify(result)),
-        riskScore: result.ethics_score,
+        // ethics_score is 100 = fully ethical; store it as risk.
+        riskScore:
+          typeof result.ethics_score === "number" ? 100 - result.ethics_score : null,
         jurisdiction: effectiveJurisdiction,
       },
     });

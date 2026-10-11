@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { parseDocument } from "@/lib/parsing";
+import { parseDocument, SUPPORTED_FILE_TYPES } from "@/lib/parsing";
 
 // TODO: Add rate limiting middleware
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 export async function GET(req: NextRequest) {
   try {
@@ -90,10 +92,45 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Title is required" }, { status: 400 });
     }
 
-    const fileExtension = file.name.split(".").pop() || "";
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { error: "File size exceeds 10MB limit" },
+        { status: 400 }
+      );
+    }
+
+    const fileExtension = (file.name.split(".").pop() || "").toLowerCase();
+    if (!(SUPPORTED_FILE_TYPES as readonly string[]).includes(fileExtension)) {
+      return NextResponse.json(
+        {
+          error: `Unsupported file type. Supported: ${SUPPORTED_FILE_TYPES.join(", ")}`,
+        },
+        { status: 400 }
+      );
+    }
+
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    const parsed = await parseDocument(buffer, fileExtension);
+    let parsed;
+    try {
+      parsed = await parseDocument(buffer, fileExtension);
+    } catch (error) {
+      console.error("POST /api/contracts parse error:", error);
+      return NextResponse.json(
+        { error: "Could not read this file. It may be corrupted or password-protected." },
+        { status: 400 }
+      );
+    }
+
+    if (!parsed.cleanedText.trim()) {
+      return NextResponse.json(
+        {
+          error:
+            "No text could be extracted from this file. Scanned/image-only PDFs are not supported.",
+        },
+        { status: 400 }
+      );
+    }
 
     const contract = await db.contract.create({
       data: {
