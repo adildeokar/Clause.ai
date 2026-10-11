@@ -1,133 +1,64 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import type { Prisma } from "@prisma/client";
+
 import { db } from "@/lib/db";
+import { getSessionUser, jsonError, readJson, unauthorized } from "@/lib/api";
+import { isJurisdictionCode } from "@/config/jurisdictions";
 
-// TODO: Add rate limiting middleware
+type Params = { params: { id: string } };
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(_req: NextRequest, { params }: Params) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const user = await getSessionUser();
+    if (!user) return unauthorized();
 
-    const { id } = await params;
-
-    const template = await db.template.findFirst({
-      where: { id, isActive: true },
-    });
-
-    if (!template) {
-      return NextResponse.json(
-        { error: "Template not found" },
-        { status: 404 }
-      );
-    }
-
+    const template = await db.template.findFirst({ where: { id: params.id, isActive: true } });
+    if (!template) return jsonError("Template not found", 404);
     return NextResponse.json(template);
   } catch (error) {
     console.error("GET /api/templates/[id] error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch template" },
-      { status: 500 }
-    );
+    return jsonError("Failed to fetch template", 500);
   }
 }
 
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PUT(req: NextRequest, { params }: Params) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const user = await getSessionUser();
+    if (!user) return unauthorized();
+    if (user.role !== "admin") return jsonError("Forbidden", 403);
+
+    const body = await readJson(req);
+    const data: Prisma.TemplateUpdateInput = {};
+    for (const field of ["name", "description", "category", "content"] as const) {
+      if (typeof body[field] === "string") data[field] = body[field];
+    }
+    if (typeof body.isActive === "boolean") data.isActive = body.isActive;
+    if (Array.isArray(body.fields)) data.fields = body.fields;
+    if (body.jurisdiction !== undefined) {
+      if (!isJurisdictionCode(body.jurisdiction)) return jsonError("Unsupported jurisdiction", 400);
+      data.jurisdiction = body.jurisdiction;
     }
 
-    const userRole = (session.user as any).role as string;
-    if (userRole !== "admin") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    const { id } = await params;
-    const body = await req.json();
-
-    const existing = await db.template.findUnique({ where: { id } });
-    if (!existing) {
-      return NextResponse.json(
-        { error: "Template not found" },
-        { status: 404 }
-      );
-    }
-
-    const allowedFields = [
-      "name",
-      "description",
-      "category",
-      "jurisdiction",
-      "content",
-      "fields",
-      "isActive",
-    ];
-    const updateData: Record<string, any> = {};
-    for (const field of allowedFields) {
-      if (body[field] !== undefined) {
-        updateData[field] = body[field];
-      }
-    }
-
-    const template = await db.template.update({
-      where: { id },
-      data: updateData,
-    });
-
+    const template = await db.template.update({ where: { id: params.id }, data }).catch(() => null);
+    if (!template) return jsonError("Template not found", 404);
     return NextResponse.json(template);
   } catch (error) {
     console.error("PUT /api/templates/[id] error:", error);
-    return NextResponse.json(
-      { error: "Failed to update template" },
-      { status: 500 }
-    );
+    return jsonError("Failed to update template", 500);
   }
 }
 
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(_req: NextRequest, { params }: Params) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const user = await getSessionUser();
+    if (!user) return unauthorized();
+    if (user.role !== "admin") return jsonError("Forbidden", 403);
 
-    const userRole = (session.user as any).role as string;
-    if (userRole !== "admin") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    const { id } = await params;
-
-    const existing = await db.template.findUnique({ where: { id } });
-    if (!existing) {
-      return NextResponse.json(
-        { error: "Template not found" },
-        { status: 404 }
-      );
-    }
-
-    await db.template.delete({ where: { id } });
-
+    const { count } = await db.template.deleteMany({ where: { id: params.id } });
+    if (count === 0) return jsonError("Template not found", 404);
     return NextResponse.json({ message: "Template deleted" });
   } catch (error) {
     console.error("DELETE /api/templates/[id] error:", error);
-    return NextResponse.json(
-      { error: "Failed to delete template" },
-      { status: 500 }
-    );
+    return jsonError("Failed to delete template", 500);
   }
 }

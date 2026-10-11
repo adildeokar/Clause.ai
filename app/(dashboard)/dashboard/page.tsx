@@ -1,26 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertTriangle } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, ArrowUpRight, Search } from "lucide-react";
 
 import { StatCard } from "@/components/app/stat-card";
 import { TemplateCarousel } from "@/components/app/template-carousel";
-import {
-  RecentContractsTable,
-  type RecentContractRow,
-} from "@/components/app/recent-contracts-table";
+import { ContractsTable, type ContractTableRow } from "@/components/app/contracts-table";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface DashboardStats {
   totalContracts: number;
-  avgRiskScore: number;
-  totalClauses: number;
-  highRiskClauses: number;
   activeContracts: number;
   highAlertContracts: number;
-  expiringSoonContracts: number;
   pendingContracts: number;
-  recentContracts: RecentContractRow[];
+  recentContracts: ContractTableRow[];
 }
 
 interface Template {
@@ -32,7 +27,6 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
-  const [templatesLoading, setTemplatesLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
@@ -43,25 +37,16 @@ export default function DashboardPage() {
           fetch("/api/dashboard/stats"),
           fetch("/api/templates"),
         ]);
-        if (!statsRes.ok) throw new Error("Failed to fetch dashboard");
-        const statsData = await statsRes.json();
-        setStats(statsData);
+        if (!statsRes.ok) throw new Error("Failed to load the dashboard");
+        setStats(await statsRes.json());
         if (templatesRes.ok) {
-          const templatesData = await templatesRes.json();
-          setTemplates(
-            (templatesData.templates ?? templatesData ?? []).slice(0, 8).map(
-              (t: { id: string; name: string }) => ({
-                id: t.id,
-                name: t.name,
-              })
-            )
-          );
+          const data: Template[] = await templatesRes.json();
+          setTemplates(data.slice(0, 8).map(({ id, name }) => ({ id, name })));
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load");
+        setError(err instanceof Error ? err.message : "Failed to load the dashboard");
       } finally {
         setLoading(false);
-        setTemplatesLoading(false);
       }
     }
     load();
@@ -83,50 +68,59 @@ export default function DashboardPage() {
     );
   }
 
+  const value = (n: number | undefined) => (loading ? "—" : n ?? 0);
+  const recent = (stats?.recentContracts ?? []).filter((c) =>
+    c.title.toLowerCase().includes(search.trim().toLowerCase())
+  );
+
   return (
     <div className="flex flex-col gap-9">
       <section className="flex flex-col gap-4">
         <h1 className="text-[32px] font-medium leading-tight tracking-[-0.08px] text-black">
           Draft New Contract
         </h1>
-        <TemplateCarousel templates={templates} loading={templatesLoading} />
+        <TemplateCarousel templates={templates} loading={loading} />
       </section>
 
       <hr className="border-[#CCE1D8]" />
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          variant="active"
-          value={loading ? "—" : (stats?.activeContracts ?? 0)}
-          label="Active"
-          sublabel="Contracts"
-        />
-        <StatCard
-          variant="alert"
-          value={loading ? "—" : (stats?.highAlertContracts ?? 0)}
-          label="High Alerts"
-          sublabel="Contracts"
-        />
-        <StatCard
-          variant="expiring"
-          value={loading ? "—" : (stats?.expiringSoonContracts ?? 0)}
-          label="Expiring Soon"
-          sublabel="Contracts"
-        />
-        <StatCard
-          variant="pending"
-          value={loading ? "—" : (stats?.pendingContracts ?? 0)}
-          label="Pending"
-          sublabel="Contracts"
-        />
+        <StatCard variant="active" value={value(stats?.activeContracts)} label="Analyzed" sublabel="Contracts" />
+        <StatCard variant="alert" value={value(stats?.highAlertContracts)} label="High Risk" sublabel="Contracts" />
+        <StatCard variant="pending" value={value(stats?.pendingContracts)} label="Awaiting" sublabel="Analysis" />
+        <StatCard variant="total" value={value(stats?.totalContracts)} label="Total" sublabel="Contracts" />
       </section>
 
-      <RecentContractsTable
-        contracts={stats?.recentContracts ?? []}
-        search={search}
-        onSearchChange={setSearch}
-        loading={loading}
-      />
+      <section className="flex flex-col gap-3.5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <h2 className="text-[32px] font-medium leading-tight tracking-[-0.08px] text-black">
+            Recent Contracts
+          </h2>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Input
+                placeholder="Search contracts"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-8 w-[min(339px,60vw)] rounded border border-[#DDDDDD] bg-white pr-10 text-base text-[#282828] placeholder:text-[#868686]"
+              />
+              <Search className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[#4B4B4B]" />
+            </div>
+            <Link
+              href="/contracts"
+              className="inline-flex h-8 items-center gap-1 rounded bg-[#006A3B] px-3 text-sm font-medium text-white hover:bg-[#005a32]"
+            >
+              See all
+              <ArrowUpRight className="h-5 w-5" />
+            </Link>
+          </div>
+        </div>
+        <ContractsTable
+          contracts={recent}
+          loading={loading}
+          emptyMessage={search ? "No contracts match your search." : "No contracts yet — upload your first one."}
+        />
+      </section>
     </div>
   );
 }

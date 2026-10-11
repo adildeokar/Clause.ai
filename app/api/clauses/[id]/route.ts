@@ -1,29 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 import { Prisma } from "@prisma/client";
-import { authOptions } from "@/lib/auth";
+
 import { db } from "@/lib/db";
+import { getSessionUser, jsonError, readJson, unauthorized } from "@/lib/api";
 
-// TODO: Add rate limiting middleware
+type Params = { params: { id: string } };
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(_req: NextRequest, { params }: Params) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const userId = (session.user as any).id as string;
-    const { id } = await params;
+    const user = await getSessionUser();
+    if (!user) return unauthorized();
 
     const clause = await db.clause.findFirst({
-      where: {
-        id,
-        contract: { userId },
-      },
+      where: { id: params.id, contract: { userId: user.id } },
       include: {
         versions: { orderBy: { version: "desc" } },
         stressTests: { orderBy: { createdAt: "desc" }, take: 5 },
@@ -31,70 +20,36 @@ export async function GET(
       },
     });
 
-    if (!clause) {
-      return NextResponse.json(
-        { error: "Clause not found" },
-        { status: 404 }
-      );
-    }
-
+    if (!clause) return jsonError("Clause not found", 404);
     return NextResponse.json(clause);
   } catch (error) {
     console.error("GET /api/clauses/[id] error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch clause" },
-      { status: 500 }
-    );
+    return jsonError("Failed to fetch clause", 500);
   }
 }
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+/** Replaces a clause's text, recording a new version and clearing stale analysis. */
+export async function PATCH(req: NextRequest, { params }: Params) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const user = await getSessionUser();
+    if (!user) return unauthorized();
 
-    const userId = (session.user as any).id as string;
-    const { id } = await params;
-    const body = await req.json();
-
-    const { clauseText, changeReason } = body;
-
-    if (!clauseText || typeof clauseText !== "string") {
-      return NextResponse.json(
-        { error: "clauseText is required" },
-        { status: 400 }
-      );
+    const { clauseText, changeReason } = await readJson(req);
+    if (typeof clauseText !== "string" || !clauseText.trim()) {
+      return jsonError("clauseText is required", 400);
     }
 
     const clause = await db.clause.findFirst({
-      where: {
-        id,
-        contract: { userId },
-      },
-      include: {
-        versions: { orderBy: { version: "desc" }, take: 1 },
-      },
+      where: { id: params.id, contract: { userId: user.id } },
+      include: { versions: { orderBy: { version: "desc" }, take: 1 } },
     });
-
-    if (!clause) {
-      return NextResponse.json(
-        { error: "Clause not found" },
-        { status: 404 }
-      );
-    }
-
-    const nextVersion = (clause.versions[0]?.version ?? 0) + 1;
+    if (!clause) return jsonError("Clause not found", 404);
 
     const [updatedClause] = await db.$transaction([
       db.clause.update({
-        where: { id },
+        where: { id: clause.id },
         data: {
-          clauseText,
+          clauseText: clauseText.trim(),
           riskScore: null,
           biasScore: null,
           strengthScore: null,
@@ -103,21 +58,20 @@ export async function PATCH(
       }),
       db.clauseVersion.create({
         data: {
-          clauseId: id,
-          version: nextVersion,
-          clauseText,
-          changeReason: changeReason || null,
-          changedBy: userId,
+          clauseId: clause.id,
+          version: (clause.versions[0]?.version ?? 0) + 1,
+          clauseText: clauseText.trim(),
+          changeReason: typeof changeReason === "string" ? changeReason : null,
+          changedBy: user.id,
         },
       }),
+      // The text changed, so its chat-retrieval embedding is stale.
+      db.clauseEmbedding.deleteMany({ where: { clauseId: clause.id } }),
     ]);
 
     return NextResponse.json(updatedClause);
   } catch (error) {
     console.error("PATCH /api/clauses/[id] error:", error);
-    return NextResponse.json(
-      { error: "Failed to update clause" },
-      { status: 500 }
-    );
+    return jsonError("Failed to update clause", 500);
   }
 }

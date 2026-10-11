@@ -10,7 +10,6 @@ import {
   X,
   ArrowLeft,
   Loader2,
-  CheckCircle2,
   AlertTriangle,
 } from "lucide-react";
 
@@ -24,186 +23,114 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Progress } from "@/components/ui/progress";
+import { JurisdictionSelect } from "@/components/app/jurisdiction-select";
+import { useWorkingJurisdiction } from "@/components/layout/jurisdiction-context";
+import { CONTRACT_TYPES, type JurisdictionCode } from "@/config/jurisdictions";
+import {
+  ACCEPT_ATTRIBUTE,
+  MAX_UPLOAD_BYTES,
+  MAX_UPLOAD_LABEL,
+  SUPPORTED_EXTENSIONS,
+  getExtension,
+  isImageExtension,
+  isSupportedExtension,
+} from "@/lib/file-types";
+import { cn } from "@/lib/utils";
 
-const JURISDICTIONS = [
-  { value: "US", label: "United States" },
-  { value: "IN", label: "India" },
-  { value: "UK", label: "United Kingdom" },
+const FORMAT_CHIPS = [
+  { label: "PDF", color: "text-red-500 bg-red-500/10" },
+  { label: "Word", color: "text-[#006A3B] bg-[#E5F0EB]" },
+  { label: "ODT · RTF · TXT · MD · HTML", color: "text-[#4B4B4B] bg-[#F4F7F6]" },
+  { label: "Scans & photos", color: "text-purple-500 bg-purple-500/10" },
 ];
 
-const CONTRACT_TYPES = [
-  "Service Agreement",
-  "Non-Disclosure Agreement",
-  "Employment Contract",
-  "Software License Agreement",
-  "Partnership Agreement",
-  "Lease Agreement",
-  "Sales Agreement",
-  "Consulting Agreement",
-  "Master Service Agreement",
-  "Statement of Work",
-  "Terms of Service",
-  "Privacy Policy",
-  "Vendor Agreement",
-  "Distribution Agreement",
-  "Joint Venture Agreement",
-];
+function fileBadge(ext: string) {
+  if (ext === "pdf") return { label: "PDF", color: "text-red-500 bg-red-500/10" };
+  if (["docx", "doc", "odt"].includes(ext)) return { label: ext.toUpperCase(), color: "text-[#006A3B] bg-[#E5F0EB]" };
+  if (isImageExtension(ext)) return { label: "IMAGE", color: "text-purple-500 bg-purple-500/10" };
+  return { label: ext.toUpperCase(), color: "text-[#4B4B4B] bg-[#F4F7F6]" };
+}
 
-const ACCEPTED_TYPES: Record<string, { label: string; color: string }> = {
-  "application/pdf": { label: "PDF", color: "text-red-400 bg-red-500/10" },
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {
-    label: "DOCX",
-    color: "text-[#006A3B] bg-[#E5F0EB]",
-  },
-  "text/plain": { label: "TXT", color: "text-green-400 bg-green-500/10" },
-};
-
-// Must match SUPPORTED_FILE_TYPES in lib/parsing.ts (legacy .doc is not parseable)
-const SUPPORTED_EXTENSIONS = ["pdf", "docx", "txt", "rtf", "md"];
-
-const ACCEPT_STRING =
-  Object.keys(ACCEPTED_TYPES).join(",") + "," + SUPPORTED_EXTENSIONS.map((e) => `.${e}`).join(",");
-
-function getFileTypeInfo(file: File) {
-  const byMime = ACCEPTED_TYPES[file.type];
-  if (byMime) return byMime;
-  const ext = file.name.split(".").pop()?.toLowerCase();
-  if (ext === "pdf") return { label: "PDF", color: "text-red-400 bg-red-500/10" };
-  if (ext === "docx") return { label: "DOCX", color: "text-[#006A3B] bg-[#E5F0EB]" };
-  if (ext === "txt") return { label: "TXT", color: "text-green-400 bg-green-500/10" };
-  return { label: ext?.toUpperCase() ?? "FILE", color: "text-muted-foreground bg-muted" };
+function titleFromFileName(name: string) {
+  const base = name.replace(/\.[^/.]+$/, "").replace(/[_-]+/g, " ").trim();
+  return base.charAt(0).toUpperCase() + base.slice(1);
 }
 
 export default function UploadPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { jurisdiction: workingJurisdiction } = useWorkingJurisdiction();
 
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
-  const [jurisdiction, setJurisdiction] = useState("US");
+  const [jurisdiction, setJurisdiction] = useState<JurisdictionCode | null>(null);
   const [contractType, setContractType] = useState("");
   const [dragActive, setDragActive] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
 
-  const handleDrag = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
-    }
-  }, []);
+  const effectiveJurisdiction = jurisdiction ?? workingJurisdiction;
+  const ext = file ? getExtension(file.name) : "";
+  const needsOcr = isImageExtension(ext) || ext === "pdf";
 
-  const handleFile = useCallback((selectedFile: File) => {
-    const ext = selectedFile.name.split(".").pop()?.toLowerCase() ?? "";
-    if (!SUPPORTED_EXTENSIONS.includes(ext)) {
+  const selectFile = useCallback((selected: File) => {
+    const selectedExt = getExtension(selected.name);
+    if (!isSupportedExtension(selectedExt)) {
       setError(
-        `Unsupported file type ".${ext}". Supported: ${SUPPORTED_EXTENSIONS.join(", ")}`
+        `".${selectedExt || "?"}" files aren't supported. Use: ${SUPPORTED_EXTENSIONS.join(", ")}.`
       );
       return;
     }
-
-    setFile(selectedFile);
+    if (selected.size > MAX_UPLOAD_BYTES) {
+      setError(`This file is ${(selected.size / 1024 / 1024).toFixed(1)} MB. The limit is ${MAX_UPLOAD_LABEL}.`);
+      return;
+    }
     setError(null);
-
-    if (!title) {
-      const name = selectedFile.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ");
-      setTitle(name.charAt(0).toUpperCase() + name.slice(1));
-    }
-
-    if (selectedFile.type === "text/plain" || selectedFile.name.endsWith(".txt")) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const text = e.target?.result as string;
-        setPreview(text.slice(0, 2000));
-      };
-      reader.readAsText(selectedFile);
-    } else {
-      setPreview(null);
-    }
-  }, [title]);
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setDragActive(false);
-
-      const droppedFile = e.dataTransfer.files?.[0];
-      if (droppedFile) handleFile(droppedFile);
-    },
-    [handleFile]
-  );
-
-  const handleFileInput = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const selectedFile = e.target.files?.[0];
-      if (selectedFile) handleFile(selectedFile);
-    },
-    [handleFile]
-  );
-
-  const removeFile = useCallback(() => {
-    setFile(null);
-    setPreview(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    setFile(selected);
+    setTitle((current) => current || titleFromFileName(selected.name));
   }, []);
+
+  function handleDrag(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(e.type === "dragenter" || e.type === "dragover");
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    handleDrag(e);
+    setDragActive(false);
+    const dropped = e.dataTransfer.files?.[0];
+    if (dropped) selectFile(dropped);
+  }
+
+  function removeFile() {
+    setFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!file) {
-      setError("Please select a file to upload.");
-      return;
-    }
-    if (!title.trim()) {
-      setError("Please enter a title.");
-      return;
-    }
+    if (!file) return setError("Please select a file to upload.");
+    if (!title.trim()) return setError("Please enter a title.");
 
     setUploading(true);
-    setProgress(0);
     setError(null);
-
-    const progressInterval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 90) return prev;
-        return prev + Math.random() * 15;
-      });
-    }, 300);
 
     try {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("title", title.trim());
-      formData.append("jurisdiction", jurisdiction);
+      formData.append("jurisdiction", effectiveJurisdiction);
       if (contractType) formData.append("contractType", contractType);
 
-      const res = await fetch("/api/contracts", {
-        method: "POST",
-        body: formData,
-      });
+      const res = await fetch("/api/contracts", { method: "POST", body: formData });
+      if (res.status === 413) throw new Error(`This file is too large. The limit is ${MAX_UPLOAD_LABEL}.`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Upload failed. Please try again.");
 
-      clearInterval(progressInterval);
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Upload failed");
-      }
-
-      setProgress(100);
-      const contract = await res.json();
-
-      setTimeout(() => {
-        router.push(`/contracts/${contract.id}`);
-      }, 500);
+      // The contract page starts the analysis and opens the document chat.
+      router.push(`/contracts/${data.id}?analyze=1`);
     } catch (err) {
-      clearInterval(progressInterval);
-      setProgress(0);
       setError(err instanceof Error ? err.message : "Upload failed. Please try again.");
       setUploading(false);
     }
@@ -211,135 +138,101 @@ export default function UploadPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      {/* Back + Header */}
       <div>
         <Link
           href="/contracts"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
+          className="mb-4 inline-flex items-center gap-1 text-sm text-[#868686] transition-colors hover:text-[#006A3B]"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to Contracts
+          Back to Repository
         </Link>
         <h1 className="text-[32px] font-medium leading-tight tracking-[-0.08px] text-black">
           Upload Contract
         </h1>
         <p className="mt-1 text-base text-[#868686]">
-          Upload a contract document for AI-powered analysis.
+          Upload any contract, NDA or terms — we extract the clauses, analyze the risk and let you chat with it.
         </p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Drop Zone */}
         <div
-          className={`relative rounded-xl border-2 border-dashed transition-all duration-200 ${
+          className={cn(
+            "relative rounded-xl border-2 border-dashed transition-all duration-200",
             dragActive
               ? "border-[#66A689] bg-[#F4F7F6]"
               : file
                 ? "border-green-500/30 bg-green-500/5"
-                : "border-border hover:border-primary/40 bg-muted/50"
-          }`}
+                : "border-border bg-muted/50 hover:border-primary/40"
+          )}
           onDragEnter={handleDrag}
           onDragLeave={handleDrag}
           onDragOver={handleDrag}
           onDrop={handleDrop}
         >
           {file ? (
-            <div className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`flex h-12 w-12 items-center justify-center rounded-lg ${getFileTypeInfo(file).color}`}
-                  >
-                    <File className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold">{file.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {getFileTypeInfo(file).label} &middot;{" "}
-                      {(file.size / 1024).toFixed(1)} KB
-                    </p>
-                  </div>
+            <div className="flex items-center justify-between p-6">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-lg", fileBadge(ext).color)}>
+                  <File className="h-6 w-6" />
                 </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                  onClick={removeFile}
-                  disabled={uploading}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{file.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {fileBadge(ext).label} &middot; {(file.size / 1024).toFixed(1)} KB
+                  </p>
+                </div>
               </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="relative z-10 h-8 w-8 text-muted-foreground hover:text-foreground"
+                onClick={removeFile}
+                disabled={uploading}
+                aria-label="Remove file"
+              >
+                <X className="h-4 w-4" />
+              </Button>
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center p-12 text-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#E5F0EB] mb-4">
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#E5F0EB]">
                 <Upload className="h-7 w-7 text-[#006A3B]" />
               </div>
-              <p className="text-sm font-medium mb-1">
-                Drag & drop your contract here
+              <p className="mb-1 text-sm font-medium">Drag & drop your document here</p>
+              <p className="mb-4 text-xs text-muted-foreground">
+                or click to browse — up to {MAX_UPLOAD_LABEL}
               </p>
-              <p className="text-xs text-muted-foreground mb-4">
-                or click to browse files
-              </p>
-              <div className="flex items-center gap-3 mb-4">
-                {[
-                  { label: "PDF", color: "text-red-400 bg-red-500/10" },
-                  { label: "DOCX", color: "text-[#006A3B] bg-[#E5F0EB]" },
-                  { label: "TXT", color: "text-green-400 bg-green-500/10" },
-                  { label: "RTF", color: "text-muted-foreground bg-muted" },
-                  { label: "MD", color: "text-muted-foreground bg-muted" },
-                ].map(({ label, color }) => (
+              <div className="mb-4 flex flex-wrap items-center justify-center gap-2">
+                {FORMAT_CHIPS.map(({ label, color }) => (
                   <span
                     key={label}
-                    className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium ${color}`}
+                    className={cn("inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium", color)}
                   >
                     <FileText className="h-3 w-3" />
                     {label}
                   </span>
                 ))}
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="border-border"
-                onClick={() => fileInputRef.current?.click()}
-              >
+              <Button type="button" variant="outline" size="sm" className="border-border">
                 Browse Files
               </Button>
             </div>
           )}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept={ACCEPT_STRING}
-            className="absolute inset-0 cursor-pointer opacity-0"
-            onChange={handleFileInput}
-            disabled={uploading}
-          />
+          {!file && (
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={ACCEPT_ATTRIBUTE}
+              className="absolute inset-0 cursor-pointer opacity-0"
+              onChange={(e) => e.target.files?.[0] && selectFile(e.target.files[0])}
+              disabled={uploading}
+              aria-label="Choose a document"
+            />
+          )}
         </div>
 
-        {/* Text Preview */}
-        {preview && (
-          <div className="glass-card p-4">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              Text Preview
-            </h3>
-            <div className="max-h-48 overflow-y-auto rounded-lg bg-muted/50 p-3">
-              <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">
-                {preview}
-                {preview.length >= 2000 && (
-                  <span className="text-[#006A3B]">... (truncated)</span>
-                )}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Form Fields */}
-        <div className="glass-card p-6 space-y-5">
+        <div className="glass-card space-y-5 p-6">
           <div className="space-y-2">
             <Label htmlFor="title" className="text-sm font-medium">
               Contract Title <span className="text-red-400">*</span>
@@ -357,31 +250,17 @@ export default function UploadPage() {
           <div className="grid gap-5 sm:grid-cols-2">
             <div className="space-y-2">
               <Label className="text-sm font-medium">Jurisdiction</Label>
-              <Select
-                value={jurisdiction}
-                onValueChange={setJurisdiction}
+              <JurisdictionSelect
+                value={effectiveJurisdiction}
+                onChange={setJurisdiction}
                 disabled={uploading}
-              >
-                <SelectTrigger className="border-border bg-muted/50">
-                  <SelectValue placeholder="Select jurisdiction" />
-                </SelectTrigger>
-                <SelectContent>
-                  {JURISDICTIONS.map(({ value, label }) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                className="border-border bg-muted/50"
+              />
             </div>
 
             <div className="space-y-2">
               <Label className="text-sm font-medium">Contract Type</Label>
-              <Select
-                value={contractType}
-                onValueChange={setContractType}
-                disabled={uploading}
-              >
+              <Select value={contractType} onValueChange={setContractType} disabled={uploading}>
                 <SelectTrigger className="border-border bg-muted/50">
                   <SelectValue placeholder="Select type (optional)" />
                 </SelectTrigger>
@@ -397,64 +276,38 @@ export default function UploadPage() {
           </div>
         </div>
 
-        {/* Upload Progress */}
         {uploading && (
-          <div className="glass-card p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                {progress >= 100 ? (
-                  <CheckCircle2 className="h-4 w-4 text-green-400" />
-                ) : (
-                  <Loader2 className="h-4 w-4 animate-spin text-[#006A3B]" />
-                )}
-                <span className="text-sm font-medium">
-                  {progress >= 100
-                    ? "Upload complete! Redirecting..."
-                    : "Uploading and processing..."}
-                </span>
-              </div>
-              <span className="text-xs text-muted-foreground">
-                {Math.round(progress)}%
-              </span>
+          <div className="glass-card flex items-center gap-3 p-5">
+            <Loader2 className="h-5 w-5 shrink-0 animate-spin text-[#006A3B]" />
+            <div>
+              <p className="text-sm font-medium">Reading your document…</p>
+              <p className="text-xs text-muted-foreground">
+                {needsOcr
+                  ? "Scanned pages and photos are read with OCR, which can take up to a minute."
+                  : "Extracting text and splitting it into clauses."}
+              </p>
             </div>
-            <Progress
-              value={progress}
-              className="h-2 bg-muted"
-            />
           </div>
         )}
 
-        {/* Error */}
         {error && (
-          <div className="flex items-center gap-2 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3">
-            <AlertTriangle className="h-4 w-4 text-red-400 shrink-0" />
-            <p className="text-sm text-red-400">{error}</p>
+          <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
+            <p className="text-sm text-red-600">{error}</p>
           </div>
         )}
 
-        {/* Submit */}
         <div className="flex items-center justify-end gap-3">
-          <Link href="/contracts">
-            <Button type="button" variant="ghost" disabled={uploading}>
-              Cancel
-            </Button>
-          </Link>
+          <Button type="button" variant="ghost" disabled={uploading} asChild>
+            <Link href="/contracts">Cancel</Link>
+          </Button>
           <Button
             type="submit"
-            className="gap-2 bg-[#006A3B] hover:bg-[#005a32] min-w-[160px]"
+            className="min-w-[160px] gap-2 bg-[#006A3B] hover:bg-[#005a32]"
             disabled={uploading || !file}
           >
-            {uploading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Uploading...
-              </>
-            ) : (
-              <>
-                <Upload className="h-4 w-4" />
-                Upload & Analyze
-              </>
-            )}
+            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+            {uploading ? "Uploading…" : "Upload & Analyze"}
           </Button>
         </div>
       </form>

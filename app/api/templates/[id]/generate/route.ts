@@ -1,91 +1,55 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+
 import { db } from "@/lib/db";
+import { getSessionUser, jsonError, readJson, unauthorized } from "@/lib/api";
 import { generateFromTemplate } from "@/ai/analysis";
-import { cleanText, splitIntoClauses } from "@/lib/parsing";
+import { localLanguage } from "@/ai/prompts";
+import { structureText } from "@/lib/parsing";
+import { toJurisdictionCode } from "@/config/jurisdictions";
 
-// TODO: Add rate limiting middleware
+export const maxDuration = 60;
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const user = await getSessionUser();
+    if (!user) return unauthorized();
+
+    const { fields, jurisdiction, useLocalLanguage } = await readJson(req);
+    if (!fields || typeof fields !== "object" || Array.isArray(fields)) {
+      return jsonError("fields object is required", 400);
     }
 
-    const userId = (session.user as any).id as string;
-    const { id } = await params;
-    const body = await req.json();
+    const template = await db.template.findFirst({ where: { id: params.id, isActive: true } });
+    if (!template) return jsonError("Template not found", 404);
 
-    const { fields, jurisdiction } = body;
+    const code = toJurisdictionCode(jurisdiction, toJurisdictionCode(template.jurisdiction));
+    const language = useLocalLanguage ? localLanguage(code) : "English";
 
-    if (!fields || typeof fields !== "object") {
-      return NextResponse.json(
-        { error: "fields object is required" },
-        { status: 400 }
-      );
-    }
-
-    const template = await db.template.findFirst({
-      where: { id, isActive: true },
-    });
-
-    if (!template) {
-      return NextResponse.json(
-        { error: "Template not found" },
-        { status: 404 }
-      );
-    }
-
-    const effectiveJurisdiction = jurisdiction || template.jurisdiction;
-
-    const result = await generateFromTemplate(
-      template.content,
-      fields,
-      effectiveJurisdiction
-    );
-
-    const cleanedText = cleanText(result.generated_contract);
-    const parsedClauses = splitIntoClauses(cleanedText);
+    const result = await generateFromTemplate(template.content, fields, code, language);
+    const { cleanedText, clauses } = structureText(result.generated_contract);
 
     const contract = await db.contract.create({
       data: {
-        title: `${template.name} - Generated`,
+        title: `${template.name} (${code})`,
         fileName: `${template.name.toLowerCase().replace(/\s+/g, "-")}.txt`,
         fileType: "txt",
         rawText: result.generated_contract,
         cleanedText,
-        jurisdiction: effectiveJurisdiction,
+        jurisdiction: code,
         contractType: template.category,
         status: "uploaded",
-        userId,
-        clauses: {
-          create: parsedClauses.map((clause) => ({
-            clauseNumber: clause.clauseNumber,
-            clauseTitle: clause.clauseTitle,
-            clauseText: clause.clauseText,
-            category: clause.category,
-          })),
-        },
+        userId: user.id,
+        clauses: { createMany: { data: clauses } },
       },
-      include: {
-        clauses: true,
-      },
+      select: { id: true, title: true },
     });
 
-    return NextResponse.json({
-      contract,
-      notes: result.notes,
-    }, { status: 201 });
+    return NextResponse.json(
+      { contract: { ...contract, text: result.generated_contract }, notes: result.notes },
+      { status: 201 }
+    );
   } catch (error) {
     console.error("POST /api/templates/[id]/generate error:", error);
-    return NextResponse.json(
-      { error: "Failed to generate contract from template" },
-      { status: 500 }
-    );
+    return jsonError("Failed to generate contract from template", 500);
   }
 }

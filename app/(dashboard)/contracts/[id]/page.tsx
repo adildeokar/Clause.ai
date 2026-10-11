@@ -20,12 +20,21 @@ import {
   Sparkles,
 } from "lucide-react";
 
-import { useChartTheme } from "@/hooks/use-chart-theme";
+import { chartTheme } from "@/lib/design-tokens";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
+import { JurisdictionSelect } from "@/components/app/jurisdiction-select";
+import { StageBadge } from "@/components/app/stage-badge";
+import { mapStatusToStage } from "@/lib/design-tokens";
 import {
+  jurisdictionName,
+  toJurisdictionCode,
+  type JurisdictionCode,
+} from "@/config/jurisdictions";
+import {
+  formatDate,
   formatScore,
   getRiskLevel,
   getStrengthLevel,
@@ -113,7 +122,7 @@ function CircularScore({
   color: string;
   size?: number;
 }) {
-  const { trackStroke } = useChartTheme();
+  const { trackStroke } = chartTheme;
   const radius = (size - 8) / 2;
   const circumference = 2 * Math.PI * radius;
   const progress =
@@ -471,58 +480,75 @@ export default function ContractDetailPage() {
 
   const [contract, setContract] = useState<Contract | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   const fetchContract = useCallback(async () => {
     try {
       const res = await fetch(`/api/contracts/${id}`);
-      if (!res.ok) throw new Error("Contract not found");
-      const data = await res.json();
+      if (!res.ok) throw new Error(res.status === 404 ? "Contract not found" : "Failed to load the contract");
+      const data: Contract = await res.json();
       setContract(data);
+      return data;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load");
+      setLoadError(err instanceof Error ? err.message : "Failed to load the contract");
+      return null;
     } finally {
       setLoading(false);
     }
   }, [id]);
 
-  useEffect(() => {
-    fetchContract();
-  }, [fetchContract]);
-
-  async function handleAnalyze() {
+  const handleAnalyze = useCallback(async () => {
     setAnalyzing(true);
+    setAnalysisError(null);
     try {
-      const res = await fetch(`/api/contracts/${id}/analyze`, {
-        method: "POST",
-      });
-      if (!res.ok) throw new Error("Analysis failed");
-      await fetchContract();
-    } catch {
-      setError("Analysis failed. Please try again.");
+      const res = await fetch(`/api/contracts/${id}/analyze`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Analysis failed. Please try again.");
+    } catch (err) {
+      setAnalysisError(err instanceof Error ? err.message : "Analysis failed. Please try again.");
     } finally {
+      await fetchContract();
       setAnalyzing(false);
     }
+  }, [id, fetchContract]);
+
+  useEffect(() => {
+    fetchContract().then((loaded) => {
+      // Arriving from the upload page: start the analysis automatically.
+      const url = new URL(window.location.href);
+      if (url.searchParams.get("analyze") === "1") {
+        url.searchParams.delete("analyze");
+        window.history.replaceState(null, "", url.pathname + url.search);
+        if (loaded && loaded.status !== "analyzed") handleAnalyze();
+      }
+    });
+  }, [fetchContract, handleAnalyze]);
+
+  async function changeJurisdiction(code: JurisdictionCode) {
+    if (!contract || code === contract.jurisdiction) return;
+    setContract({ ...contract, jurisdiction: code });
+    await fetch(`/api/contracts/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jurisdiction: code }),
+    }).catch(() => {});
   }
 
   if (loading) return <PageSkeleton />;
 
-  if (error || !contract) {
+  if (loadError || !contract) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 gap-4">
-        <AlertTriangle className="h-12 w-12 text-red-400" />
-        <p className="text-lg text-muted-foreground">
-          {error || "Contract not found"}
-        </p>
+      <div className="flex flex-col items-center justify-center gap-4 py-20">
+        <AlertTriangle className="h-12 w-12 text-red-500" />
+        <p className="text-lg text-muted-foreground">{loadError || "Contract not found"}</p>
         <Button onClick={() => router.push("/contracts")} variant="outline">
           Back to Repository
         </Button>
       </div>
     );
   }
-
-  const latestAnalysis = contract.analyses[0];
 
   return (
     <div className="space-y-6">
@@ -537,53 +563,46 @@ export default function ContractDetailPage() {
         </Link>
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h1 className="text-[32px] font-medium leading-tight tracking-[-0.08px] text-black">
+          <div className="min-w-0">
+            <h1 className="break-words text-[32px] font-medium leading-tight tracking-[-0.08px] text-black">
               {contract.title}
             </h1>
-            <div className="flex flex-wrap items-center gap-2 mt-2">
-              <Badge variant="outline">{contract.jurisdiction}</Badge>
-              {contract.contractType && (
-                <Badge variant="secondary">{contract.contractType}</Badge>
-              )}
-              <Badge
-                variant={
-                  contract.status === "analyzed"
-                    ? "low"
-                    : contract.status === "error"
-                      ? "critical"
-                      : "secondary"
-                }
-              >
-                {contract.status}
-              </Badge>
-              <span className="text-xs text-muted-foreground flex items-center gap-1">
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <JurisdictionSelect
+                value={toJurisdictionCode(contract.jurisdiction)}
+                onChange={changeJurisdiction}
+                disabled={analyzing}
+                className="h-7 w-auto gap-1.5 border-[#DDDDDD] px-2 text-xs"
+              />
+              {contract.contractType && <Badge variant="secondary">{contract.contractType}</Badge>}
+              <StageBadge stage={analyzing ? "Analyzing" : mapStatusToStage(contract.status)} />
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
                 <Clock className="h-3 w-3" />
-                {new Date(contract.createdAt).toLocaleDateString()}
+                {formatDate(contract.createdAt)}
               </span>
             </div>
           </div>
           <Button
-            className="gap-2 bg-[#006A3B] hover:bg-[#005a32] shrink-0"
+            className="shrink-0 gap-2 bg-[#006A3B] hover:bg-[#005a32]"
             disabled={analyzing}
             onClick={handleAnalyze}
           >
-            {analyzing ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Analyzing...
-              </>
-            ) : (
-              <>
-                <Sparkles className="h-4 w-4" />
-                {contract.status === "analyzed"
-                  ? "Re-analyze"
-                  : "Analyze Contract"}
-              </>
-            )}
+            {analyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {analyzing
+              ? `Analyzing ${contract.clauses.length} clauses…`
+              : contract.status === "analyzed"
+                ? "Re-analyze"
+                : "Analyze Contract"}
           </Button>
         </div>
       </div>
+
+      {analysisError && (
+        <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
+          <p className="text-sm text-red-600">{analysisError}</p>
+        </div>
+      )}
 
       {/* Score Cards */}
       <div className="grid gap-4 sm:grid-cols-3">
@@ -638,7 +657,7 @@ export default function ContractDetailPage() {
               {[
                 { label: "File Name", value: contract.fileName },
                 { label: "File Type", value: contract.fileType.toUpperCase() },
-                { label: "Jurisdiction", value: contract.jurisdiction },
+                { label: "Jurisdiction", value: jurisdictionName(contract.jurisdiction) },
                 {
                   label: "Contract Type",
                   value: contract.contractType || "Not specified",
@@ -844,14 +863,14 @@ export default function ContractDetailPage() {
                                 Clause {i + 1}
                               </span>
                               <div className="flex gap-2">
-                                {cr.risk_score !== undefined && (
+                                {cr.risk_score != null && (
                                   <Badge
                                     variant={getRiskVariant(cr.risk_score)}
                                   >
                                     R: {formatScore(cr.risk_score)}
                                   </Badge>
                                 )}
-                                {cr.bias_score !== undefined && (
+                                {cr.bias_score != null && (
                                   <Badge
                                     variant={getRiskVariant(cr.bias_score)}
                                   >

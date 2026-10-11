@@ -53,9 +53,11 @@ export const SYSTEM_PROMPTS = {
   )}
 Review every clause given (each starts with "### Clause N"). Scores are integers 0-100:
 risk_score (100 = most dangerous), bias_score (100 = extremely one-sided), strength_score (100 = clear, complete, enforceable), confidence_score.
-Limits: at most 3 issues, each description <= 25 words; explanation <= 35 words; suggested_revision only if risk_score >= 40 (<= 80 words), otherwise "".
+If a clause has no obligations (title, preamble, party details, signatures), set all four scores to null with no issues.
+suggested_revision: only if risk_score >= 40, the redrafted clause text itself (not advice), in the clause's own language, <= 80 words; otherwise "".
+Limits: at most 3 issues, each description <= 25 words; explanation <= 35 words.
 Respond with JSON only:
-{"results":[{"clause_number":1,"risk_score":0,"bias_score":0,"strength_score":0,"confidence_score":0,"issues":[{"type":"risk|bias|ambiguity|missing_provision|enforceability","severity":${SEVERITY},"description":""}],"suggested_revision":"","explanation":""}]}`,
+{"results":[{"clause_number":1,"risk_score":"<0-100|null>","bias_score":"<0-100|null>","strength_score":"<0-100|null>","confidence_score":"<0-100|null>","issues":[{"type":"risk|bias|ambiguity|missing_provision|enforceability","severity":${SEVERITY},"description":""}],"suggested_revision":"","explanation":""}]}`,
 
   contractReview: (jurisdiction: string, contractType?: string | null, reviewer?: ReviewerProfile) => `${header(
     `You are a senior contract auditor reviewing a whole ${contractType || "contract"} for loopholes and fairness.`,
@@ -83,7 +85,8 @@ Respond with JSON only:
       plain_language: "plain everyday language with short sentences and no jargon",
     };
     return `${header("You are an expert contract drafter.", jurisdiction)}
-Rewrite the clause in ${styles[style]}. Keep every substantive term, stay enforceable under this jurisdiction, and keep the clause's original language.
+Rewrite the clause in ${styles[style]}. Keep every substantive term and stay enforceable under this jurisdiction.
+Write rewritten_clause in exactly the same language as the input clause — never translate it (French stays French, Portuguese stays Portuguese).
 Limits: at most 4 changes_summary items (<= 20 words each); enforceability_notes <= 30 words. Scores are integers 0-100.
 Respond with JSON only:
 {"rewritten_clause":"","changes_summary":[{"change_made":"","reason":""}],"enforceability_notes":"","readability_score":0,"legal_strength_score":0}`;

@@ -33,27 +33,6 @@
     --brand-yellow-400: 42 100% 48%;
   }
 
-  .dark {
-    --background: 0 0% 4%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 6%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 6%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 155 60% 45%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 0 0% 14%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14%;
-    --muted-foreground: 0 0% 64%;
-    --accent: 0 0% 14%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 15%;
-    --input: 0 0% 15%;
-    --ring: 155 60% 45%;
-  }
 }
 
 @layer base {
@@ -83,12 +62,6 @@
   }
   .glass-card {
     @apply figma-card;
-  }
-  .btn-brand {
-    @apply bg-[#006A3B] text-white hover:bg-[#005a32];
-  }
-  .text-brand {
-    @apply text-[#006A3B];
   }
   .form-label {
     @apply text-sm font-medium text-[#4B4B4B];

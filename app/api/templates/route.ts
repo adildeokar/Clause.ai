@@ -1,33 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import type { Prisma } from "@prisma/client";
+
 import { db } from "@/lib/db";
+import { getSessionUser, jsonError, readJson, unauthorized } from "@/lib/api";
+import { toJurisdictionCode } from "@/config/jurisdictions";
 
-// TODO: Add rate limiting middleware
+export const dynamic = "force-dynamic";
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { searchParams } = new URL(req.url);
-    const category = searchParams.get("category") || "";
-    const jurisdiction = searchParams.get("jurisdiction") || "";
-
-    const where: any = { isActive: true };
-
-    if (category) {
-      where.category = category;
-    }
-
-    if (jurisdiction) {
-      where.jurisdiction = jurisdiction;
-    }
+    const user = await getSessionUser();
+    if (!user) return unauthorized();
 
     const templates = await db.template.findMany({
-      where,
+      where: { isActive: true },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
@@ -38,40 +24,24 @@ export async function GET(req: NextRequest) {
         content: true,
         fields: true,
         createdAt: true,
-        updatedAt: true,
       },
     });
-
     return NextResponse.json(templates);
   } catch (error) {
     console.error("GET /api/templates error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch templates" },
-      { status: 500 }
-    );
+    return jsonError("Failed to fetch templates", 500);
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const user = await getSessionUser();
+    if (!user) return unauthorized();
+    if (user.role !== "admin") return jsonError("Forbidden", 403);
 
-    const userRole = (session.user as any).role as string;
-    if (userRole !== "admin") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    const body = await req.json();
-    const { name, description, category, jurisdiction, content, fields } = body;
-
+    const { name, description, category, jurisdiction, content, fields } = await readJson(req);
     if (!name || !category || !content) {
-      return NextResponse.json(
-        { error: "name, category, and content are required" },
-        { status: 400 }
-      );
+      return jsonError("name, category, and content are required", 400);
     }
 
     const template = await db.template.create({
@@ -79,18 +49,14 @@ export async function POST(req: NextRequest) {
         name,
         description: description || null,
         category,
-        jurisdiction: jurisdiction || "US",
+        jurisdiction: toJurisdictionCode(jurisdiction),
         content,
-        fields: fields || null,
+        fields: Array.isArray(fields) ? (fields as Prisma.InputJsonValue) : undefined,
       },
     });
-
     return NextResponse.json(template, { status: 201 });
   } catch (error) {
     console.error("POST /api/templates error:", error);
-    return NextResponse.json(
-      { error: "Failed to create template" },
-      { status: 500 }
-    );
+    return jsonError("Failed to create template", 500);
   }
 }

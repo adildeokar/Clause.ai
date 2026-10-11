@@ -4,7 +4,8 @@ import Link from "next/link";
 
 import { StageBadge } from "@/components/app/stage-badge";
 import { mapStatusToStage } from "@/lib/design-tokens";
-import { cn, formatScore, getRiskLevel, type RiskLevel } from "@/lib/utils";
+import { jurisdictionName } from "@/config/jurisdictions";
+import { cn, formatDate, formatScore, getRiskLevel, type RiskLevel } from "@/lib/utils";
 
 export interface ContractTableRow {
   id: string;
@@ -21,35 +22,18 @@ export interface ContractTableRow {
 interface ContractsTableProps {
   contracts: ContractTableRow[];
   loading?: boolean;
-  highlightIndex?: number;
+  emptyMessage?: string;
 }
 
 const COLUMNS = [
   { key: "title", label: "CONTRACT NAME", className: "min-w-[200px]" },
   { key: "stage", label: "STAGE", className: "min-w-[100px]" },
-  { key: "agreement", label: "AGREEMENT DATE", className: "min-w-[140px]" },
+  { key: "uploaded", label: "UPLOADED", className: "min-w-[140px]" },
   { key: "region", label: "REGION", className: "min-w-[120px]" },
   { key: "risk", label: "RISK SCORE", className: "min-w-[100px]" },
   { key: "clauses", label: "CLAUSES", className: "min-w-[90px]" },
   { key: "dept", label: "TYPE", className: "min-w-[120px]" },
 ] as const;
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function jurisdictionLabel(code: string) {
-  const map: Record<string, string> = {
-    US: "United States",
-    IN: "India",
-    UK: "United Kingdom",
-  };
-  return map[code] ?? code;
-}
 
 function riskColor(score: number | null) {
   if (score === null) return "text-[#868686]";
@@ -65,7 +49,7 @@ function riskColor(score: number | null) {
 export function ContractsTable({
   contracts,
   loading,
-  highlightIndex,
+  emptyMessage = "No contracts found.",
 }: ContractsTableProps) {
   return (
     <div className="overflow-x-auto rounded-lg border border-[#CCE1D8]">
@@ -105,18 +89,12 @@ export function ContractsTable({
                 colSpan={COLUMNS.length}
                 className="px-5 py-16 text-center text-sm text-[#868686]"
               >
-                No contracts found.
+                {emptyMessage}
               </td>
             </tr>
           ) : (
-            contracts.map((contract, index) => (
-              <tr
-                key={contract.id}
-                className={cn(
-                  "transition-colors hover:bg-[#E8E8E8]/50",
-                  highlightIndex === index && "bg-[#E8E8E8]"
-                )}
-              >
+            contracts.map((contract) => (
+              <tr key={contract.id} className="transition-colors hover:bg-[#F4F7F6]">
                 <td className="border-b border-[#CCE1D8] px-5 py-4">
                   <Link
                     href={`/contracts/${contract.id}`}
@@ -132,7 +110,7 @@ export function ContractsTable({
                   {formatDate(contract.createdAt)}
                 </td>
                 <td className="border-b border-[#CCE1D8] px-5 py-4 text-base text-black">
-                  {jurisdictionLabel(contract.jurisdiction)}
+                  {jurisdictionName(contract.jurisdiction)}
                 </td>
                 <td
                   className={cn(

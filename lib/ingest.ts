@@ -3,20 +3,16 @@ import type { ChatCompletionContentPart } from "openai/resources/chat/completion
 import { SYSTEM_PROMPTS } from "@/ai/prompts";
 import { openai, AI_MODEL } from "@/lib/openai";
 import { mapWithConcurrency } from "@/lib/utils";
+import { extractText, isLikelyScanned, structureText } from "@/lib/parsing";
 import {
   SUPPORTED_EXTENSIONS,
-  extractText,
   getExtension,
   isImageExtension,
-  isLikelyScanned,
   isSupportedExtension,
-  structureText,
-} from "@/lib/parsing";
+} from "@/lib/file-types";
 
 /** An error whose message is safe and useful to show to the user. */
 export class IngestError extends Error {}
-
-export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 /** Scanned PDFs are OCR'd page by page, in parallel, up to this many pages. */
 const OCR_MAX_PAGES = 30;

@@ -14,7 +14,6 @@ import {
   Plus,
   Trash2,
   Mail,
-  Globe,
   Bell,
   Eye,
   Sliders,
@@ -35,6 +34,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { JurisdictionSelect } from "@/components/app/jurisdiction-select";
+import { useWorkingJurisdiction } from "@/components/layout/jurisdiction-context";
 import { cn } from "@/lib/utils";
 
 interface Integration {
@@ -75,7 +76,7 @@ export default function SettingsPage() {
 
   // Profile state
   const [profileName, setProfileName] = useState(session?.user?.name ?? "");
-  const [profileJurisdiction, setProfileJurisdiction] = useState("US");
+  const { jurisdiction, setJurisdiction } = useWorkingJurisdiction();
 
   // Preferences state
   const [defaultView, setDefaultView] = useState("legal");
@@ -202,18 +203,9 @@ export default function SettingsPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Jurisdiction Preference</Label>
-                <Select value={profileJurisdiction} onValueChange={setProfileJurisdiction}>
-                  <SelectTrigger>
-                    <Globe className="mr-2 h-4 w-4 text-[#868686]" />
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="US">United States</SelectItem>
-                    <SelectItem value="IN">India</SelectItem>
-                    <SelectItem value="UK">United Kingdom</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>Default Jurisdiction</Label>
+                <JurisdictionSelect value={jurisdiction} onChange={setJurisdiction} />
+                <p className="text-xs text-[#868686]">Saved automatically. Used for uploads, drafting and generation.</p>
               </div>
               <div className="space-y-2">
                 <Label>Role</Label>

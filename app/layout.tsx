@@ -26,7 +26,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="light" suppressHydrationWarning>
+    <html lang="en">
       <body
         className={`${inter.className} font-sans antialiased`}
         style={{ fontFamily: "var(--font-sans), -apple-system, BlinkMacSystemFont, 'SF Pro', sans-serif" }}

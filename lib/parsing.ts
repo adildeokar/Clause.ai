@@ -3,24 +3,7 @@
  * Pure functions only — OCR (which calls the AI) lives in lib/ingest.ts.
  */
 
-export const TEXT_EXTENSIONS = ["pdf", "docx", "doc", "odt", "rtf", "txt", "md", "html", "htm"] as const;
-export const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "webp"] as const;
-export const SUPPORTED_EXTENSIONS = [...TEXT_EXTENSIONS, ...IMAGE_EXTENSIONS] as const;
-
-export type SupportedExtension = (typeof SUPPORTED_EXTENSIONS)[number];
-
-export function getExtension(fileName: string): string {
-  const dot = fileName.lastIndexOf(".");
-  return dot === -1 ? "" : fileName.slice(dot + 1).toLowerCase();
-}
-
-export function isSupportedExtension(ext: string): ext is SupportedExtension {
-  return (SUPPORTED_EXTENSIONS as readonly string[]).includes(ext);
-}
-
-export function isImageExtension(ext: string) {
-  return (IMAGE_EXTENSIONS as readonly string[]).includes(ext);
-}
+import type { SupportedExtension } from "@/lib/file-types";
 
 export interface ParsedClause {
   clauseNumber: number;
@@ -326,9 +309,11 @@ function headingTitle(heading: Heading, line: string, nextLine?: string): string
     // "ARTICLE 1" alone on a line, title on the next line.
     title =
       nextLine && nextLine.length <= 60 && !/[.;:]$/.test(nextLine) ? nextLine : line.trim();
-  } else if (title.length > 80) {
+  } else {
+    // "Payment. Client pays…" → "Payment"; a full sentence is not a title.
     const cut = title.search(/[.:]\s/);
-    title = cut > 0 && cut <= 80 ? title.slice(0, cut) : "";
+    if (cut > 0 && cut <= 60) title = title.slice(0, cut);
+    else if (title.length > 80 || (/[.;]$/.test(title) && title.split(/\s+/).length > 6)) title = "";
   }
 
   title = title.replace(/[\s.:–—-]+$/, "").trim();
@@ -401,7 +386,6 @@ function categorize(title: string | null, text: string): string | null {
   return best;
 }
 
-const MIN_CLAUSE_CHARS = 120;
 const MAX_CLAUSE_CHARS = 5000;
 const CHUNK_CHARS = 2000;
 const MAX_CLAUSES = 150;
@@ -409,6 +393,11 @@ const MAX_CLAUSES = 150;
 interface Segment {
   title: string | null;
   text: string;
+}
+
+/** A heading with no body, or a stray line too short to stand as a clause. */
+function isFragment(text: string) {
+  return text.length < 40 || (!text.includes("\n") && text.length < 90 && !/[.;:]$/.test(text));
 }
 
 /** Splits cleaned text into clauses using the document's own heading structure. */
@@ -438,15 +427,19 @@ export function splitIntoClauses(cleanedText: string): ParsedClause[] {
     });
   }
 
-  // Fold heading-only fragments into the clause that follows (or precedes).
+  // Fold heading-only fragments (a title line with no body, a document title
+  // before the first clause) into the clause that follows, or precedes at the end.
   const merged: Segment[] = [];
   let carry: Segment | null = null;
   for (const segment of segments) {
     const current: Segment = carry
-      ? { title: carry.title ?? segment.title, text: `${carry.text}\n${segment.text}` }
+      ? {
+          title: carry.title && carry.title !== "Preamble" ? carry.title : segment.title,
+          text: `${carry.text}\n${segment.text}`,
+        }
       : segment;
     carry = null;
-    if (current.text.length < MIN_CLAUSE_CHARS) carry = current;
+    if (isFragment(current.text)) carry = current;
     else merged.push(current);
   }
   if (carry) {

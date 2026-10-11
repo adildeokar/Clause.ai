@@ -1,70 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { rewriteClause, type RewriteResult } from "@/ai/analysis";
-import { type RewriteStyle } from "@/ai/prompts";
 
+import { getSessionUser, jsonError, readJson, unauthorized } from "@/lib/api";
+import { rewriteClause } from "@/ai/analysis";
+import { REWRITE_STYLES, type RewriteStyle } from "@/ai/prompts";
+import { isJurisdictionCode } from "@/config/jurisdictions";
+
+const MAX_TEXT_CHARS = 5000;
+
+/** Free-form clause rewrite used by the Drafting page. */
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const user = await getSessionUser();
+    if (!user) return unauthorized();
+
+    const { text, style, jurisdiction } = await readJson(req);
+    if (typeof text !== "string" || !text.trim()) return jsonError("text is required", 400);
+    if (text.length > MAX_TEXT_CHARS) {
+      return jsonError(`Clause is too long (max ${MAX_TEXT_CHARS} characters)`, 400);
     }
-
-    const body = await req.json();
-    const { text, style, jurisdiction } = body;
-
-    if (!text || !style || !jurisdiction) {
-      return NextResponse.json(
-        { error: "text, style, and jurisdiction are required" },
-        { status: 400 }
-      );
+    if (!REWRITE_STYLES.includes(style)) {
+      return jsonError(`Invalid style. Use: ${REWRITE_STYLES.join(", ")}`, 400);
     }
+    if (!isJurisdictionCode(jurisdiction)) return jsonError("Unsupported jurisdiction", 400);
 
-    const validStyles: RewriteStyle[] = [
-      "corporate",
-      "startup_friendly",
-      "assertive",
-      "plain_language",
-    ];
-
-    const styleMap: Record<string, RewriteStyle> = {
-      corporate: "corporate",
-      startup: "startup_friendly",
-      startup_friendly: "startup_friendly",
-      assertive: "assertive",
-      plain: "plain_language",
-      plain_language: "plain_language",
-    };
-
-    const mappedStyle = styleMap[style] || style;
-    if (!validStyles.includes(mappedStyle as RewriteStyle)) {
-      return NextResponse.json(
-        { error: `Invalid style. Use: ${validStyles.join(", ")}` },
-        { status: 400 }
-      );
-    }
-
-    const result: RewriteResult = await rewriteClause(
-      text,
-      mappedStyle as RewriteStyle,
-      jurisdiction
-    );
-
-    return NextResponse.json({
-      rewritten: result.rewritten_clause,
-      rewrittenText: result.rewritten_clause,
-      style: result.style_applied,
-      changes: result.changes_summary,
-      readabilityScore: result.readability_score,
-      legalStrengthScore: result.legal_strength_score,
-      enforceabilityNotes: result.enforceability_notes,
-    });
+    const result = await rewriteClause(text.trim(), style as RewriteStyle, jurisdiction);
+    return NextResponse.json(result);
   } catch (error) {
     console.error("POST /api/clauses/rewrite error:", error);
-    return NextResponse.json(
-      { error: "Failed to rewrite clause" },
-      { status: 500 }
-    );
+    return jsonError("Failed to rewrite clause", 500);
   }
 }

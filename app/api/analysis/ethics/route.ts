@@ -1,67 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { db } from "@/lib/db";
-import { scanEthics } from "@/ai/analysis";
+import type { Prisma } from "@prisma/client";
 
-// TODO: Add rate limiting middleware
+import { db } from "@/lib/db";
+import { getSessionUser, jsonError, readJson, unauthorized } from "@/lib/api";
+import { scanEthics } from "@/ai/analysis";
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const user = await getSessionUser();
+    if (!user) return unauthorized();
 
-    const userId = (session.user as any).id as string;
-    const body = await req.json();
-
-    const { contractId, jurisdiction } = body;
-
-    if (!contractId) {
-      return NextResponse.json(
-        { error: "contractId is required" },
-        { status: 400 }
-      );
-    }
+    const { contractId } = await readJson(req);
+    if (typeof contractId !== "string") return jsonError("contractId is required", 400);
 
     const contract = await db.contract.findFirst({
-      where: { id: contractId, userId },
+      where: { id: contractId, userId: user.id },
+      select: { id: true, cleanedText: true, jurisdiction: true },
     });
+    if (!contract) return jsonError("Contract not found", 404);
 
-    if (!contract) {
-      return NextResponse.json(
-        { error: "Contract not found" },
-        { status: 404 }
-      );
-    }
-
-    const effectiveJurisdiction = jurisdiction || contract.jurisdiction;
-
-    const result = await scanEthics(
-      contract.cleanedText,
-      effectiveJurisdiction
-    );
+    const result = await scanEthics(contract.cleanedText, contract.jurisdiction);
 
     await db.analysisResult.create({
       data: {
-        contractId,
-        userId,
+        contractId: contract.id,
+        userId: user.id,
         analysisType: "ethics",
-        resultJson: JSON.parse(JSON.stringify(result)),
+        resultJson: result as unknown as Prisma.InputJsonValue,
         // ethics_score is 100 = fully ethical; store it as risk.
-        riskScore:
-          typeof result.ethics_score === "number" ? 100 - result.ethics_score : null,
-        jurisdiction: effectiveJurisdiction,
+        riskScore: result.ethics_score === null ? null : 100 - result.ethics_score,
+        jurisdiction: contract.jurisdiction,
       },
     });
 
     return NextResponse.json(result);
   } catch (error) {
     console.error("POST /api/analysis/ethics error:", error);
-    return NextResponse.json(
-      { error: "Failed to run ethics scan" },
-      { status: 500 }
-    );
+    return jsonError("Failed to run ethics scan", 500);
   }
 }

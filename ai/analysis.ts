@@ -167,12 +167,18 @@ export function fitDocument(text: string, max = DOCUMENT_CHARS) {
 }
 
 function normalizeClauseAnalysis(raw: any): ClauseAnalysis {
+  const issues = list(raw?.issues);
+  // Boilerplate (preamble, party details) sometimes comes back as all-zero
+  // scores instead of null; it must not drag down the contract averages.
+  const unscored =
+    issues.length === 0 && toScore(raw?.risk_score) === 0 && toScore(raw?.bias_score) === 0;
+  const score = (v: unknown) => (unscored ? null : toScore(v));
   return {
-    risk_score: toScore(raw?.risk_score),
-    bias_score: toScore(raw?.bias_score),
-    strength_score: toScore(raw?.strength_score),
-    confidence_score: toScore(raw?.confidence_score),
-    issues: list(raw?.issues)
+    risk_score: score(raw?.risk_score),
+    bias_score: score(raw?.bias_score),
+    strength_score: score(raw?.strength_score),
+    confidence_score: score(raw?.confidence_score),
+    issues: issues
       .slice(0, 3)
       .map((i) => ({
         type: str(i?.type) || "risk",

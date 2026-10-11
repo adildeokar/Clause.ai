@@ -1,50 +1,50 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import type { Prisma } from "@prisma/client";
+
 import { db } from "@/lib/db";
-import { parseDocument, SUPPORTED_FILE_TYPES } from "@/lib/parsing";
+import { getSessionUser, jsonError, unauthorized } from "@/lib/api";
+import { IngestError, ingestDocument } from "@/lib/ingest";
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from "@/lib/file-types";
+import { toJurisdictionCode } from "@/config/jurisdictions";
 
-// TODO: Add rate limiting middleware
-
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+// Scanned documents are OCR'd during upload, which can take a while.
+export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const user = await getSessionUser();
+    if (!user) return unauthorized();
 
-    const userId = (session.user as any).id as string;
     const { searchParams } = new URL(req.url);
-
-    const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
-    const limit = Math.min(50, Math.max(1, parseInt(searchParams.get("limit") || "10")));
-    const search = searchParams.get("search") || "";
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1") || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(searchParams.get("limit") || "10") || 10));
+    const search = searchParams.get("search")?.trim() || "";
     const status = searchParams.get("status") || "";
 
-    const skip = (page - 1) * limit;
-
-    const where: any = { userId };
-
+    const where: Prisma.ContractWhereInput = { userId: user.id };
     if (search) {
       where.OR = [
         { title: { contains: search, mode: "insensitive" } },
         { cleanedText: { contains: search, mode: "insensitive" } },
       ];
     }
-
-    if (status) {
-      where.status = status;
-    }
+    if (status) where.status = status;
 
     const [contracts, total] = await Promise.all([
       db.contract.findMany({
         where,
-        skip,
+        skip: (page - 1) * limit,
         take: limit,
         orderBy: { createdAt: "desc" },
-        include: {
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          jurisdiction: true,
+          contractType: true,
+          riskScore: true,
+          createdAt: true,
+          updatedAt: true,
           _count: { select: { clauses: true } },
         },
       }),
@@ -53,117 +53,65 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       contracts,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
   } catch (error) {
     console.error("GET /api/contracts error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch contracts" },
-      { status: 500 }
-    );
+    return jsonError("Failed to fetch contracts", 500);
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const user = await getSessionUser();
+    if (!user) return unauthorized();
 
-    const userId = (session.user as any).id as string;
     const formData = await req.formData();
+    const file = formData.get("file");
+    const title = (formData.get("title") as string | null)?.trim();
+    const contractType = (formData.get("contractType") as string | null)?.trim() || null;
 
-    const file = formData.get("file") as File | null;
-    const title = formData.get("title") as string | null;
-    const jurisdiction = (formData.get("jurisdiction") as string) || "US";
-    const contractType = formData.get("contractType") as string | null;
+    if (!(file instanceof File)) return jsonError("File is required", 400);
+    if (!title) return jsonError("Title is required", 400);
+    if (file.size === 0) return jsonError("The file is empty", 400);
+    if (file.size > MAX_UPLOAD_BYTES) return jsonError(`File is larger than ${MAX_UPLOAD_LABEL}`, 400);
 
-    if (!file) {
-      return NextResponse.json({ error: "File is required" }, { status: 400 });
-    }
+    const profile = await db.user.findUnique({
+      where: { id: user.id },
+      select: { jurisdiction: true },
+    });
+    const jurisdiction = toJurisdictionCode(
+      formData.get("jurisdiction"),
+      toJurisdictionCode(profile?.jurisdiction)
+    );
 
-    if (!title) {
-      return NextResponse.json({ error: "Title is required" }, { status: 400 });
-    }
-
-    if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
-        { error: "File size exceeds 10MB limit" },
-        { status: 400 }
-      );
-    }
-
-    const fileExtension = (file.name.split(".").pop() || "").toLowerCase();
-    if (!(SUPPORTED_FILE_TYPES as readonly string[]).includes(fileExtension)) {
-      return NextResponse.json(
-        {
-          error: `Unsupported file type. Supported: ${SUPPORTED_FILE_TYPES.join(", ")}`,
-        },
-        { status: 400 }
-      );
-    }
-
-    const buffer = Buffer.from(await file.arrayBuffer());
-
-    let parsed;
+    let document;
     try {
-      parsed = await parseDocument(buffer, fileExtension);
+      document = await ingestDocument(Buffer.from(await file.arrayBuffer()), file.name);
     } catch (error) {
-      console.error("POST /api/contracts parse error:", error);
-      return NextResponse.json(
-        { error: "Could not read this file. It may be corrupted or password-protected." },
-        { status: 400 }
-      );
-    }
-
-    if (!parsed.cleanedText.trim()) {
-      return NextResponse.json(
-        {
-          error:
-            "No text could be extracted from this file. Scanned/image-only PDFs are not supported.",
-        },
-        { status: 400 }
-      );
+      if (error instanceof IngestError) return jsonError(error.message, 400);
+      throw error;
     }
 
     const contract = await db.contract.create({
       data: {
-        title,
+        title: title.slice(0, 200),
         fileName: file.name,
-        fileType: fileExtension,
-        rawText: parsed.rawText,
-        cleanedText: parsed.cleanedText,
+        fileType: document.fileType,
+        rawText: document.rawText,
+        cleanedText: document.cleanedText,
         jurisdiction,
         contractType,
         status: "uploaded",
-        userId,
-        clauses: {
-          create: parsed.clauses.map((clause) => ({
-            clauseNumber: clause.clauseNumber,
-            clauseTitle: clause.clauseTitle,
-            clauseText: clause.clauseText,
-            category: clause.category,
-          })),
-        },
+        userId: user.id,
+        clauses: { createMany: { data: document.clauses } },
       },
-      include: {
-        clauses: true,
-        _count: { select: { clauses: true } },
-      },
+      select: { id: true, title: true, _count: { select: { clauses: true } } },
     });
 
-    return NextResponse.json(contract, { status: 201 });
+    return NextResponse.json({ ...contract, usedOcr: document.usedOcr }, { status: 201 });
   } catch (error) {
     console.error("POST /api/contracts error:", error);
-    return NextResponse.json(
-      { error: "Failed to create contract" },
-      { status: 500 }
-    );
+    return jsonError("Failed to upload contract", 500);
   }
 }

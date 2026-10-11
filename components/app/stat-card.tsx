@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-type StatVariant = "active" | "alert" | "expiring" | "pending";
+type StatVariant = "active" | "alert" | "pending" | "total";
 
 const variants: Record<
   StatVariant,
@@ -20,12 +20,12 @@ const variants: Record<
     value: "text-[#BB032A]",
     label: "text-[#F83446]",
   },
-  expiring: {
+  pending: {
     container: "bg-[#FDF2DC] border-[#D79900]",
     value: "text-[#9F6402]",
     label: "text-[#B97502]",
   },
-  pending: {
+  total: {
     container: "bg-white border-[#A6A6A6]",
     value: "text-[#282828]",
     label: "text-[#282828]",

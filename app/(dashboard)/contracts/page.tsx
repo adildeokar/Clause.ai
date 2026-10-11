@@ -13,6 +13,7 @@ import {
 
 import { PageHeader } from "@/components/app/page-header";
 import { ContractsTable, type ContractTableRow } from "@/components/app/contracts-table";
+import { mapStatusToStage } from "@/lib/design-tokens";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -23,7 +24,7 @@ interface Pagination {
   totalPages: number;
 }
 
-const STATUS_FILTERS = ["All", "uploaded", "analyzed", "parsing", "error"] as const;
+const STATUS_FILTERS = ["All", "analyzed", "uploaded", "parsing", "error"] as const;
 
 export default function ContractsPage() {
   const [contracts, setContracts] = useState<ContractTableRow[]>([]);
@@ -57,15 +58,14 @@ export default function ContractsPage() {
     fetchContracts();
   }, [page, search, statusFilter]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [search, statusFilter]);
-
   const debouncedSearch = useMemo(() => {
     let timer: NodeJS.Timeout;
     return (value: string) => {
       clearTimeout(timer);
-      timer = setTimeout(() => setSearch(value), 300);
+      timer = setTimeout(() => {
+        setPage(1);
+        setSearch(value);
+      }, 300);
     };
   }, []);
 
@@ -118,11 +118,12 @@ export default function ContractsPage() {
                   ? "bg-[#006A3B] hover:bg-[#005a32]"
                   : "text-[#868686] hover:bg-[#F4F7F6] hover:text-black"
               }
-              onClick={() => setStatusFilter(status)}
+              onClick={() => {
+                setPage(1);
+                setStatusFilter(status);
+              }}
             >
-              {status === "All"
-                ? "All"
-                : status.charAt(0).toUpperCase() + status.slice(1)}
+              {status === "All" ? "All" : mapStatusToStage(status)}
             </Button>
           ))}
           <Link href="/contracts/upload">
@@ -134,7 +135,11 @@ export default function ContractsPage() {
         </div>
       </div>
 
-      <ContractsTable contracts={contracts} loading={loading} highlightIndex={1} />
+      <ContractsTable
+        contracts={contracts}
+        loading={loading}
+        emptyMessage={search || statusFilter !== "All" ? "No contracts match your filters." : "No contracts yet — upload your first one."}
+      />
 
       {pagination && pagination.totalPages > 1 && (
         <div className="flex items-center justify-center gap-2 pt-2">

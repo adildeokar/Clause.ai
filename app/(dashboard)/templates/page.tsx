@@ -1,27 +1,28 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
-import {
-  BookTemplate,
-  Search,
-  Filter,
-  Plus,
-  AlertTriangle,
-  Clock,
-  Globe,
-  FileText,
-  Eye,
-  Sparkles,
-  X,
-  ChevronRight,
-} from "lucide-react";
-import { useSession } from "next-auth/react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import {
+  AlertTriangle,
+  BookTemplate,
+  Check,
+  ChevronRight,
+  Copy,
+  Eye,
+  FileText,
+  Filter,
+  Globe,
+  Loader2,
+  Search,
+  Sparkles,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -37,7 +38,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/lib/utils";
+import { JurisdictionSelect } from "@/components/app/jurisdiction-select";
+import { useWorkingJurisdiction } from "@/components/layout/jurisdiction-context";
+import {
+  JURISDICTIONS,
+  JURISDICTION_CODES,
+  jurisdictionName,
+  type JurisdictionCode,
+} from "@/config/jurisdictions";
+
+interface TemplateField {
+  name: string;
+  label: string;
+  type?: string;
+  placeholder?: string;
+  required?: boolean;
+}
 
 interface Template {
   id: string;
@@ -47,348 +63,187 @@ interface Template {
   jurisdiction: string;
   content: string;
   fields: TemplateField[];
-  createdAt: string;
 }
 
-interface TemplateField {
-  name: string;
-  label: string;
-  type: "text" | "date" | "number" | "select";
-  required: boolean;
-  options?: string[];
-  placeholder?: string;
+interface Generated {
+  contractId: string;
+  text: string;
+  notes: string[];
 }
-
-const CATEGORIES = [
-  "All",
-  "Service Agreement",
-  "NDA",
-  "Employment Contract",
-  "Software License",
-  "Partnership Agreement",
-  "Lease Agreement",
-  "Consulting Agreement",
-] as const;
-
-const JURISDICTIONS = ["All", "US", "IN", "UK"] as const;
-
-const JURISDICTION_LABELS: Record<string, string> = {
-  US: "United States",
-  IN: "India",
-  UK: "United Kingdom",
-};
-
-const MOCK_TEMPLATES: Template[] = [
-  {
-    id: "t1",
-    name: "Standard NDA",
-    description: "Mutual non-disclosure agreement suitable for business discussions, partnerships, and preliminary negotiations.",
-    category: "NDA",
-    jurisdiction: "US",
-    content: "MUTUAL NON-DISCLOSURE AGREEMENT\n\nThis Mutual Non-Disclosure Agreement (\"Agreement\") is entered into as of {{effective_date}} by and between {{party_a_name}} (\"Party A\") and {{party_b_name}} (\"Party B\").\n\n1. CONFIDENTIAL INFORMATION\nEach party may disclose confidential information to the other party...\n\n2. OBLIGATIONS\nThe receiving party shall hold confidential information in strict confidence...\n\n3. TERM\nThis Agreement shall remain in effect for {{term_years}} year(s) from the Effective Date.",
-    fields: [
-      { name: "effective_date", label: "Effective Date", type: "date", required: true },
-      { name: "party_a_name", label: "Party A Name", type: "text", required: true, placeholder: "Your Company Name" },
-      { name: "party_b_name", label: "Party B Name", type: "text", required: true, placeholder: "Other Party Name" },
-      { name: "term_years", label: "Term (Years)", type: "number", required: true, placeholder: "2" },
-    ],
-    createdAt: "2025-01-15T10:00:00Z",
-  },
-  {
-    id: "t2",
-    name: "Master Service Agreement",
-    description: "Comprehensive service agreement framework covering deliverables, payment terms, IP rights, and dispute resolution.",
-    category: "Service Agreement",
-    jurisdiction: "US",
-    content: "MASTER SERVICE AGREEMENT\n\nThis Master Service Agreement (\"MSA\") is entered into by {{client_name}} (\"Client\") and {{provider_name}} (\"Provider\") as of {{start_date}}.\n\n1. SERVICES\nProvider shall perform the services described in each Statement of Work...\n\n2. COMPENSATION\nClient shall pay Provider as specified in the applicable SOW...",
-    fields: [
-      { name: "client_name", label: "Client Name", type: "text", required: true },
-      { name: "provider_name", label: "Provider Name", type: "text", required: true },
-      { name: "start_date", label: "Start Date", type: "date", required: true },
-    ],
-    createdAt: "2025-01-20T10:00:00Z",
-  },
-  {
-    id: "t3",
-    name: "Employment Agreement",
-    description: "Standard employment contract covering role, compensation, benefits, termination, and post-employment restrictions.",
-    category: "Employment Contract",
-    jurisdiction: "IN",
-    content: "EMPLOYMENT AGREEMENT\n\nThis Employment Agreement is made on {{joining_date}} between {{company_name}} (\"Employer\") and {{employee_name}} (\"Employee\").\n\n1. POSITION\nEmployee shall serve as {{position}} reporting to {{reporting_to}}...",
-    fields: [
-      { name: "company_name", label: "Company Name", type: "text", required: true },
-      { name: "employee_name", label: "Employee Name", type: "text", required: true },
-      { name: "joining_date", label: "Joining Date", type: "date", required: true },
-      { name: "position", label: "Position/Title", type: "text", required: true },
-      { name: "reporting_to", label: "Reporting Manager", type: "text", required: false },
-    ],
-    createdAt: "2025-02-01T10:00:00Z",
-  },
-  {
-    id: "t4",
-    name: "Software License Agreement",
-    description: "End-user or enterprise software license agreement with usage rights, restrictions, and SLA terms.",
-    category: "Software License",
-    jurisdiction: "US",
-    content: "SOFTWARE LICENSE AGREEMENT\n\nThis Software License Agreement (\"Agreement\") is between {{licensor_name}} (\"Licensor\") and {{licensee_name}} (\"Licensee\").\n\n1. LICENSE GRANT\nLicensor grants Licensee a non-exclusive license to use {{software_name}}...",
-    fields: [
-      { name: "licensor_name", label: "Licensor Name", type: "text", required: true },
-      { name: "licensee_name", label: "Licensee Name", type: "text", required: true },
-      { name: "software_name", label: "Software Name", type: "text", required: true },
-    ],
-    createdAt: "2025-02-10T10:00:00Z",
-  },
-  {
-    id: "t5",
-    name: "Consulting Agreement (UK)",
-    description: "Professional consulting services agreement compliant with UK law, covering scope, fees, and liability.",
-    category: "Consulting Agreement",
-    jurisdiction: "UK",
-    content: "CONSULTING AGREEMENT\n\nThis Consulting Agreement is made on {{effective_date}} between {{client_name}} (\"Client\") and {{consultant_name}} (\"Consultant\").\n\n1. ENGAGEMENT\nClient hereby engages Consultant to provide consulting services as described herein...",
-    fields: [
-      { name: "client_name", label: "Client Name", type: "text", required: true },
-      { name: "consultant_name", label: "Consultant Name", type: "text", required: true },
-      { name: "effective_date", label: "Effective Date", type: "date", required: true },
-    ],
-    createdAt: "2025-02-15T10:00:00Z",
-  },
-  {
-    id: "t6",
-    name: "Partnership Agreement",
-    description: "General partnership agreement defining roles, profit-sharing, decision-making, and dissolution terms.",
-    category: "Partnership Agreement",
-    jurisdiction: "IN",
-    content: "PARTNERSHIP AGREEMENT\n\nThis Partnership Agreement is entered into on {{date}} among the following partners: {{partner_names}}.\n\n1. BUSINESS PURPOSE\nThe partnership shall conduct business as {{business_name}}...",
-    fields: [
-      { name: "partner_names", label: "Partner Names", type: "text", required: true, placeholder: "Partner 1, Partner 2" },
-      { name: "business_name", label: "Business Name", type: "text", required: true },
-      { name: "date", label: "Agreement Date", type: "date", required: true },
-    ],
-    createdAt: "2025-02-20T10:00:00Z",
-  },
-  {
-    id: "t7",
-    name: "Residential Lease Agreement",
-    description: "Standard residential property lease covering rent, security deposit, maintenance, and tenant obligations.",
-    category: "Lease Agreement",
-    jurisdiction: "US",
-    content: "RESIDENTIAL LEASE AGREEMENT\n\nThis Lease Agreement is made on {{lease_date}} between {{landlord_name}} (\"Landlord\") and {{tenant_name}} (\"Tenant\").\n\n1. PROPERTY\nLandlord leases to Tenant the property at {{property_address}}...",
-    fields: [
-      { name: "landlord_name", label: "Landlord Name", type: "text", required: true },
-      { name: "tenant_name", label: "Tenant Name", type: "text", required: true },
-      { name: "lease_date", label: "Lease Date", type: "date", required: true },
-      { name: "property_address", label: "Property Address", type: "text", required: true },
-    ],
-    createdAt: "2025-03-01T10:00:00Z",
-  },
-  {
-    id: "t8",
-    name: "NDA (India)",
-    description: "Non-disclosure agreement compliant with Indian Contract Act 1872, suitable for domestic and cross-border use.",
-    category: "NDA",
-    jurisdiction: "IN",
-    content: "NON-DISCLOSURE AGREEMENT\n\nThis Agreement is made under the Indian Contract Act 1872 on {{date}} between {{disclosing_party}} and {{receiving_party}}...",
-    fields: [
-      { name: "disclosing_party", label: "Disclosing Party", type: "text", required: true },
-      { name: "receiving_party", label: "Receiving Party", type: "text", required: true },
-      { name: "date", label: "Agreement Date", type: "date", required: true },
-    ],
-    createdAt: "2025-03-05T10:00:00Z",
-  },
-];
 
 function TemplateCardSkeleton() {
   return (
-    <div className="glass-card p-5 animate-pulse">
-      <div className="h-5 w-40 rounded bg-muted mb-3" />
-      <div className="h-3 w-full rounded bg-muted mb-2" />
-      <div className="h-3 w-2/3 rounded bg-muted mb-4" />
-      <div className="flex gap-2">
-        <div className="h-5 w-16 rounded-full bg-muted" />
-        <div className="h-5 w-12 rounded-full bg-muted" />
-      </div>
+    <div className="glass-card animate-pulse p-5">
+      <div className="mb-3 h-5 w-40 rounded bg-muted" />
+      <div className="mb-2 h-3 w-full rounded bg-muted" />
+      <div className="mb-4 h-3 w-2/3 rounded bg-muted" />
+      <div className="h-5 w-16 rounded-full bg-muted" />
     </div>
   );
 }
 
 export default function TemplatesPage() {
-  const { data: session } = useSession();
-  const isAdmin = (session?.user as any)?.role === "admin";
+  const { jurisdiction: workingJurisdiction } = useWorkingJurisdiction();
 
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [jurisdictionFilter, setJurisdictionFilter] = useState("All");
-  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
+
+  const [selected, setSelected] = useState<Template | null>(null);
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
+  const [targetJurisdiction, setTargetJurisdiction] = useState<JurisdictionCode>(workingJurisdiction);
+  const [useLocalLanguage, setUseLocalLanguage] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [generatedContract, setGeneratedContract] = useState<string | null>(null);
-  const [generatedContractId, setGeneratedContractId] = useState<string | null>(null);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+  const [generated, setGenerated] = useState<Generated | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const targetLanguage = JURISDICTIONS[targetJurisdiction].language;
+
+  function openTemplate(template: Template) {
+    setSelected(template);
+    setFieldValues({});
+    setTargetJurisdiction(workingJurisdiction);
+    setUseLocalLanguage(false);
+    setGenerated(null);
+    setGenerateError(null);
+  }
 
   useEffect(() => {
-    async function fetchTemplates() {
+    async function load() {
       try {
         const res = await fetch("/api/templates");
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) {
-            const loaded: Template[] = data.map((t: any) => ({
-              ...t,
-              description: t.description ?? "",
-              content: t.content ?? "",
-              fields: Array.isArray(t.fields)
-                ? t.fields
-                : MOCK_TEMPLATES.find((m) => m.category === t.category)?.fields ?? [],
-            }));
-            setTemplates(loaded);
+        if (!res.ok) throw new Error("Failed to load templates");
+        const data: any[] = await res.json();
+        const loaded: Template[] = data.map((t) => ({
+          id: t.id,
+          name: t.name,
+          description: t.description ?? "",
+          category: t.category,
+          jurisdiction: t.jurisdiction,
+          content: t.content ?? "",
+          fields: Array.isArray(t.fields) ? t.fields : [],
+        }));
+        setTemplates(loaded);
 
-            // Dashboard carousel links here with ?generate=<templateId>
-            const requestedId = new URLSearchParams(window.location.search).get("generate");
-            const requested = requestedId && loaded.find((t) => t.id === requestedId);
-            if (requested) openTemplate(requested);
-          } else {
-            setTemplates(MOCK_TEMPLATES);
-          }
-        } else {
-          setTemplates(MOCK_TEMPLATES);
-        }
-      } catch {
-        setTemplates(MOCK_TEMPLATES);
+        // The dashboard carousel links here with ?generate=<templateId>.
+        const requestedId = new URLSearchParams(window.location.search).get("generate");
+        const requested = loaded.find((t) => t.id === requestedId);
+        if (requested) openTemplate(requested);
+      } catch (err) {
+        setLoadError(err instanceof Error ? err.message : "Failed to load templates");
       } finally {
         setLoading(false);
       }
     }
-    fetchTemplates();
+    load();
+    // Runs once on mount; openTemplate only reads the initial working jurisdiction.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const categories = useMemo(
+    () => ["All", ...Array.from(new Set(templates.map((t) => t.category))).sort()],
+    [templates]
+  );
 
   const filteredTemplates = useMemo(() => {
-    return templates.filter((t) => {
-      const matchesSearch = !search || t.name.toLowerCase().includes(search.toLowerCase()) || t.description.toLowerCase().includes(search.toLowerCase());
-      const matchesCategory = categoryFilter === "All" || t.category === categoryFilter;
-      const matchesJurisdiction = jurisdictionFilter === "All" || t.jurisdiction === jurisdictionFilter;
-      return matchesSearch && matchesCategory && matchesJurisdiction;
-    });
+    const query = search.trim().toLowerCase();
+    return templates.filter(
+      (t) =>
+        (!query || t.name.toLowerCase().includes(query) || t.description.toLowerCase().includes(query)) &&
+        (categoryFilter === "All" || t.category === categoryFilter) &&
+        (jurisdictionFilter === "All" || t.jurisdiction === jurisdictionFilter)
+    );
   }, [templates, search, categoryFilter, jurisdictionFilter]);
 
-  const debouncedSearch = useMemo(() => {
-    let timer: NodeJS.Timeout;
-    return (value: string) => {
-      clearTimeout(timer);
-      timer = setTimeout(() => setSearch(value), 300);
-    };
-  }, []);
-
-  function openTemplate(template: Template) {
-    setSelectedTemplate(template);
-    setFieldValues({});
-    setGeneratedContract(null);
-    setGeneratedContractId(null);
-  }
-
   async function handleGenerate() {
-    if (!selectedTemplate) return;
-
-    const missing = selectedTemplate.fields
-      .filter((f) => f.required && !fieldValues[f.name]?.trim())
-      .map((f) => f.label);
-
-    if (missing.length > 0) return;
+    if (!selected) return;
+    const missing = selected.fields.filter((f) => f.required && !fieldValues[f.name]?.trim());
+    if (missing.length > 0) {
+      setGenerateError(`Please fill in: ${missing.map((f) => f.label).join(", ")}`);
+      return;
+    }
 
     setGenerating(true);
-    setGeneratedContractId(null);
+    setGenerateError(null);
     try {
-      const res = await fetch(`/api/templates/${selectedTemplate.id}/generate`, {
+      const res = await fetch(`/api/templates/${selected.id}/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fields: fieldValues }),
+        body: JSON.stringify({
+          fields: fieldValues,
+          jurisdiction: targetJurisdiction,
+          useLocalLanguage: useLocalLanguage && targetLanguage !== "English",
+        }),
       });
-
-      if (res.ok) {
-        // Response shape: { contract: Contract, notes: string[] }
-        const data = await res.json();
-        setGeneratedContract(data.contract?.rawText ?? "");
-        setGeneratedContractId(data.contract?.id ?? null);
-      } else {
-        let filled = selectedTemplate.content;
-        Object.entries(fieldValues).forEach(([key, value]) => {
-          filled = filled.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), value || `[${key}]`);
-        });
-        setGeneratedContract(filled);
-      }
-    } catch {
-      let filled = selectedTemplate.content;
-      Object.entries(fieldValues).forEach(([key, value]) => {
-        filled = filled.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), value || `[${key}]`);
-      });
-      setGeneratedContract(filled);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Generation failed. Please try again.");
+      setGenerated({ contractId: data.contract.id, text: data.contract.text, notes: data.notes ?? [] });
+    } catch (err) {
+      setGenerateError(err instanceof Error ? err.message : "Generation failed. Please try again.");
     } finally {
       setGenerating(false);
     }
   }
 
-  if (error) {
+  if (loadError) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 gap-4">
-        <AlertTriangle className="h-12 w-12 text-red-400" />
-        <p className="text-lg text-muted-foreground">{error}</p>
-        <Button onClick={() => window.location.reload()} variant="outline">Retry</Button>
+      <div className="flex flex-col items-center justify-center gap-4 py-20">
+        <AlertTriangle className="h-12 w-12 text-red-500" />
+        <p className="text-lg text-muted-foreground">{loadError}</p>
+        <Button onClick={() => window.location.reload()} variant="outline">
+          Retry
+        </Button>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-[32px] font-medium leading-tight tracking-[-0.08px] text-black">
-            Rule Book
-          </h1>
-          <p className="mt-1 text-base text-[#868686]">
-            Browse and generate contracts from pre-built legal templates.
-          </p>
-        </div>
-        {isAdmin && (
-          <Button className="gap-2 bg-[#006A3B] hover:bg-[#005a32]">
-            <Plus className="h-4 w-4" />
-            Create Template
-          </Button>
-        )}
+      <div>
+        <h1 className="text-[32px] font-medium leading-tight tracking-[-0.08px] text-black">Rule Book</h1>
+        <p className="mt-1 text-base text-[#868686]">
+          Generate contracts from templates, adapted to the law of any supported jurisdiction.
+        </p>
       </div>
 
-      {/* Search & Filters */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <div className="relative max-w-md flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search templates..."
-            className="pl-9 border-border bg-muted/50"
-            onChange={(e) => debouncedSearch(e.target.value)}
+            className="border-border bg-muted/50 pl-9"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-            <SelectTrigger className="w-[180px] border-border bg-muted/50">
-              <Filter className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+            <SelectTrigger className="w-[190px] border-border bg-muted/50">
+              <Filter className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
               <SelectValue placeholder="Category" />
             </SelectTrigger>
             <SelectContent>
-              {CATEGORIES.map((c) => (
-                <SelectItem key={c} value={c}>{c}</SelectItem>
+              {categories.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c === "All" ? "All Categories" : c}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
           <Select value={jurisdictionFilter} onValueChange={setJurisdictionFilter}>
-            <SelectTrigger className="w-[150px] border-border bg-muted/50">
-              <Globe className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+            <SelectTrigger className="w-[190px] border-border bg-muted/50">
+              <Globe className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
               <SelectValue placeholder="Jurisdiction" />
             </SelectTrigger>
             <SelectContent>
-              {JURISDICTIONS.map((j) => (
-                <SelectItem key={j} value={j}>
-                  {j === "All" ? "All Jurisdictions" : JURISDICTION_LABELS[j] ?? j}
+              <SelectItem value="All">All Jurisdictions</SelectItem>
+              {JURISDICTION_CODES.map((code) => (
+                <SelectItem key={code} value={code}>
+                  {jurisdictionName(code)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -396,21 +251,20 @@ export default function TemplatesPage() {
         </div>
       </div>
 
-      {/* Template Grid */}
       {loading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
+          {Array.from({ length: 3 }).map((_, i) => (
             <TemplateCardSkeleton key={i} />
           ))}
         </div>
       ) : filteredTemplates.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted/60 mb-4">
+          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-muted/60">
             <BookTemplate className="h-8 w-8 text-muted-foreground/50" />
           </div>
-          <h3 className="text-lg font-semibold mb-1">No templates found</h3>
-          <p className="text-sm text-muted-foreground mb-4 max-w-sm">
-            Try adjusting your search or filters.
+          <h3 className="mb-1 text-lg font-semibold">No templates found</h3>
+          <p className="max-w-sm text-sm text-muted-foreground">
+            {templates.length ? "Try adjusting your search or filters." : "No templates have been added yet."}
           </p>
         </div>
       ) : (
@@ -418,141 +272,169 @@ export default function TemplatesPage() {
           {filteredTemplates.map((template) => (
             <button
               key={template.id}
+              type="button"
               onClick={() => openTemplate(template)}
-              className="glass-card p-5 text-left transition-all duration-200 hover:bg-muted hover:border-primary/25 group"
+              className="glass-card group p-5 text-left transition-all duration-200 hover:border-[#66A689] hover:bg-[#F4F7F6]"
             >
-              <div className="flex items-start justify-between mb-3">
+              <div className="mb-3 flex items-start justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-purple-500/10">
-                    <FileText className="h-5 w-5 text-purple-400" />
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#E5F0EB]">
+                    <FileText className="h-5 w-5 text-[#006A3B]" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold group-hover:text-[#006A3B] transition-colors">
+                    <p className="text-sm font-semibold transition-colors group-hover:text-[#006A3B]">
                       {template.name}
                     </p>
-                    <Badge variant="outline" className="text-xs text-muted-foreground mt-1">
+                    <Badge variant="outline" className="mt-1 text-xs text-muted-foreground">
                       {template.category}
                     </Badge>
                   </div>
                 </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
               </div>
-
-              <p className="text-xs text-muted-foreground line-clamp-2 mb-4">
-                {template.description}
-              </p>
-
+              <p className="mb-4 line-clamp-2 text-xs text-muted-foreground">{template.description}</p>
               <div className="flex items-center gap-2">
-                <Badge
-                  variant="outline"
-                  className={cn(
-                    "text-xs",
-                    template.jurisdiction === "US" && "text-[#006A3B] border-[#66A689]/30",
-                    template.jurisdiction === "IN" && "text-orange-400 border-orange-500/30",
-                    template.jurisdiction === "UK" && "text-purple-400 border-purple-500/30"
-                  )}
-                >
-                  <Globe className="h-3 w-3 mr-1" />
-                  {template.jurisdiction}
+                <Badge variant="outline" className="text-xs">
+                  <Globe className="mr-1 h-3 w-3" />
+                  {jurisdictionName(template.jurisdiction)} base
                 </Badge>
-                <span className="text-xs text-muted-foreground">
-                  {template.fields.length} fields
-                </span>
+                <span className="text-xs text-muted-foreground">{template.fields.length} fields</span>
               </div>
             </button>
           ))}
         </div>
       )}
 
-      {/* Template Detail Dialog */}
-      <Dialog open={!!selectedTemplate} onOpenChange={(open) => !open && setSelectedTemplate(null)}>
-        <DialogContent className="glass-card border-border max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
+      <Dialog open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
+        <DialogContent className="flex max-h-[90vh] max-w-2xl flex-col overflow-hidden">
           <DialogHeader>
-            <DialogTitle>{selectedTemplate?.name}</DialogTitle>
-            <DialogDescription>{selectedTemplate?.description}</DialogDescription>
+            <DialogTitle>{selected?.name}</DialogTitle>
+            <DialogDescription>{selected?.description}</DialogDescription>
           </DialogHeader>
 
           <ScrollArea className="flex-1 pr-4">
             <div className="space-y-6 pb-4">
-              {/* Template Preview */}
-              {!generatedContract && (
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium flex items-center gap-2">
-                    <Eye className="h-4 w-4 text-muted-foreground" />
-                    Template Preview
-                  </h4>
-                  <div className="rounded-lg border border-border bg-muted/50 p-4">
-                    <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono leading-relaxed">
-                      {selectedTemplate?.content}
-                    </pre>
-                  </div>
-                </div>
-              )}
-
-              {/* Form Fields */}
-              {!generatedContract && selectedTemplate?.fields && (
-                <div className="space-y-4">
-                  <h4 className="text-sm font-medium">Fill in the details</h4>
-                  {selectedTemplate.fields.map((field) => (
-                    <div key={field.name} className="space-y-2">
-                      <Label className="text-sm">
-                        {field.label}
-                        {field.required && <span className="text-red-400 ml-1">*</span>}
-                      </Label>
-                      <Input
-                        type={field.type === "date" ? "date" : field.type === "number" ? "number" : "text"}
-                        placeholder={field.placeholder}
-                        className="border-border bg-muted/50"
-                        value={fieldValues[field.name] ?? ""}
-                        onChange={(e) =>
-                          setFieldValues((prev) => ({ ...prev, [field.name]: e.target.value }))
-                        }
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Generated Contract */}
-              {generatedContract && (
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium flex items-center gap-2">
+              {generated ? (
+                <div className="space-y-3">
+                  <h4 className="flex items-center gap-2 text-sm font-medium">
                     <Sparkles className="h-4 w-4 text-[#006A3B]" />
-                    Generated Contract
+                    Generated for {jurisdictionName(targetJurisdiction)}
                   </h4>
+                  {generated.notes.length > 0 && (
+                    <ul className="space-y-1 rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-3">
+                      {generated.notes.map((note, i) => (
+                        <li key={i} className="text-xs text-[#9F6402]">
+                          • {note}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                   <div className="rounded-lg border border-[#66A689]/20 bg-[#F4F7F6] p-4">
-                    <pre className="text-sm text-foreground whitespace-pre-wrap font-mono leading-relaxed">
-                      {generatedContract}
+                    <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-foreground">
+                      {generated.text}
                     </pre>
                   </div>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <h4 className="flex items-center gap-2 text-sm font-medium">
+                      <Eye className="h-4 w-4 text-muted-foreground" />
+                      Template Preview
+                    </h4>
+                    <div className="max-h-56 overflow-y-auto rounded-lg border border-border bg-muted/50 p-4">
+                      <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-muted-foreground">
+                        {selected?.content}
+                      </pre>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 rounded-lg border border-border p-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label className="text-sm">Generate for</Label>
+                      <JurisdictionSelect value={targetJurisdiction} onChange={setTargetJurisdiction} />
+                    </div>
+                    {targetLanguage !== "English" && (
+                      <div className="flex items-center justify-between gap-3 sm:pt-7">
+                        <Label htmlFor="local-language" className="text-sm">
+                          Draft in {targetLanguage}
+                        </Label>
+                        <Switch
+                          id="local-language"
+                          checked={useLocalLanguage}
+                          onCheckedChange={setUseLocalLanguage}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {selected && selected.fields.length > 0 && (
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-medium">Fill in the details</h4>
+                      {selected.fields.map((field) => (
+                        <div key={field.name} className="space-y-2">
+                          <Label htmlFor={`field-${field.name}`} className="text-sm">
+                            {field.label}
+                            {field.required && <span className="ml-1 text-red-500">*</span>}
+                          </Label>
+                          {field.type === "textarea" ? (
+                            <Textarea
+                              id={`field-${field.name}`}
+                              placeholder={field.placeholder}
+                              className="min-h-[80px] border-border bg-muted/50"
+                              value={fieldValues[field.name] ?? ""}
+                              onChange={(e) => setFieldValues((prev) => ({ ...prev, [field.name]: e.target.value }))}
+                            />
+                          ) : (
+                            <Input
+                              id={`field-${field.name}`}
+                              type={field.type === "date" ? "date" : field.type === "number" ? "number" : "text"}
+                              placeholder={field.placeholder}
+                              className="border-border bg-muted/50"
+                              value={fieldValues[field.name] ?? ""}
+                              onChange={(e) => setFieldValues((prev) => ({ ...prev, [field.name]: e.target.value }))}
+                            />
+                          )}
+                        </div>
+                      ))}
+                      <p className="text-xs text-muted-foreground">
+                        Leave anything blank and it will be marked [TO BE COMPLETED].
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {generateError && (
+                <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
+                  <p className="text-sm text-red-600">{generateError}</p>
                 </div>
               )}
             </div>
           </ScrollArea>
 
-          <div className="flex gap-3 pt-4 border-t border-border">
-            {generatedContract ? (
+          <div className="flex flex-wrap gap-3 border-t border-border pt-4">
+            {generated ? (
               <>
-                <Button
-                  variant="outline"
-                  className="flex-1 border-border"
-                  onClick={() => setGeneratedContract(null)}
-                >
+                <Button variant="outline" className="flex-1 border-border" onClick={() => setGenerated(null)}>
                   Edit Fields
                 </Button>
                 <Button
-                  className="flex-1 bg-[#006A3B] hover:bg-[#005a32]"
+                  variant="outline"
+                  className="flex-1 gap-2 border-border"
                   onClick={() => {
-                    navigator.clipboard.writeText(generatedContract);
+                    navigator.clipboard.writeText(generated.text);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
                   }}
                 >
-                  Copy to Clipboard
+                  {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                  {copied ? "Copied" : "Copy"}
                 </Button>
-                {generatedContractId && (
-                  <Button asChild className="flex-1 bg-[#006A3B] hover:bg-[#005a32]">
-                    <Link href={`/contracts/${generatedContractId}`}>Open Contract</Link>
-                  </Button>
-                )}
+                <Button asChild className="flex-1 bg-[#006A3B] hover:bg-[#005a32]">
+                  <Link href={`/contracts/${generated.contractId}?analyze=1`}>Open & Analyze</Link>
+                </Button>
               </>
             ) : (
               <Button
@@ -560,12 +442,8 @@ export default function TemplatesPage() {
                 disabled={generating}
                 onClick={handleGenerate}
               >
-                {generating ? (
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted border-t-primary" />
-                ) : (
-                  <Sparkles className="h-4 w-4" />
-                )}
-                {generating ? "Generating..." : "Generate Contract"}
+                {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {generating ? "Generating… this takes about 20 seconds" : "Generate Contract"}
               </Button>
             )}
           </div>

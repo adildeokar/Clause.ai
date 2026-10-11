@@ -27,7 +27,7 @@ import {
   Legend,
 } from "recharts";
 
-import { useChartTheme } from "@/hooks/use-chart-theme";
+import { chartTheme } from "@/lib/design-tokens";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -132,7 +132,7 @@ function ChartSkeleton() {
 }
 
 export default function AnalyticsPage() {
-  const { gridStroke, tickFill, axisLabelFill, legendColor } = useChartTheme();
+  const { gridStroke, tickFill, axisLabelFill, legendColor } = chartTheme;
   const [dateRange, setDateRange] = useState<DateRange>("30d");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
