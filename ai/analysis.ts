@@ -103,7 +103,7 @@ export interface BenchmarkResult {
 // ─── Limits (the main levers on token cost and latency) ─────────────────────
 
 /** Max characters of a single clause sent for analysis. */
-const CLAUSE_CHARS = 2500;
+export const CLAUSE_CHARS = 2500;
 /** Clauses are reviewed several per request to avoid repeating the prompt. */
 const BATCH_CHARS = 7000;
 const BATCH_SIZE = 6;
@@ -115,10 +115,11 @@ const DOCUMENT_CHARS = 48_000;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-async function callAI<T>(
+export async function callAI<T>(
   systemPrompt: string,
   userContent: string,
-  maxTokens: number
+  maxTokens: number,
+  temperature = 0.2
 ): Promise<T> {
   const response = await openai.chat.completions.create({
     model: AI_MODEL,
@@ -126,7 +127,7 @@ async function callAI<T>(
       { role: "system", content: systemPrompt },
       { role: "user", content: userContent },
     ],
-    temperature: 0.2,
+    temperature,
     max_tokens: maxTokens,
     response_format: { type: "json_object" },
   });
@@ -148,14 +149,14 @@ export function toScore(value: unknown): number | null {
   return Math.round(Math.min(100, Math.max(0, n)));
 }
 
-const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
-const list = (v: unknown): any[] => (Array.isArray(v) ? v : []);
-const strList = (v: unknown) => list(v).map(str).filter(Boolean);
+export const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+export const list = (v: unknown): any[] => (Array.isArray(v) ? v : []);
+export const strList = (v: unknown) => list(v).map(str).filter(Boolean);
 const SEVERITIES: Severity[] = ["low", "medium", "high", "critical"];
 const severity = (v: unknown): Severity =>
   SEVERITIES.includes(v as Severity) ? (v as Severity) : "medium";
 
-function truncate(text: string, max: number) {
+export function truncate(text: string, max: number) {
   return text.length > max ? `${text.slice(0, max)}…` : text;
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -18,6 +18,8 @@ import {
   Clock,
   Scale,
   Sparkles,
+  Swords,
+  MessagesSquare,
 } from "lucide-react";
 
 import { chartTheme } from "@/lib/design-tokens";
@@ -27,6 +29,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { JurisdictionSelect } from "@/components/app/jurisdiction-select";
 import { StageBadge } from "@/components/app/stage-badge";
+import { ClauseDebateDialog } from "@/components/app/clause-debate-dialog";
+import { DocumentChat } from "@/components/app/document-chat";
 import { mapStatusToStage } from "@/lib/design-tokens";
 import {
   jurisdictionName,
@@ -34,6 +38,7 @@ import {
   type JurisdictionCode,
 } from "@/config/jurisdictions";
 import {
+  cn,
   formatDate,
   formatScore,
   getRiskLevel,
@@ -54,6 +59,8 @@ interface Clause {
   createdAt: string;
   updatedAt: string;
   _count: { versions: number; stressTests: number };
+  /** The latest "Break My Clause" debate, if any. */
+  debates: { resilienceScore: number; winner: string; createdAt: string }[];
 }
 
 interface Analysis {
@@ -167,20 +174,44 @@ function CircularScore({
   );
 }
 
+const DEBATE_WINNER_LABEL: Record<string, string> = {
+  challenger: "Challenger prevailed",
+  defender: "Defender prevailed",
+  draw: "Draw",
+};
+
 function ClauseCard({
   clause,
-  onStressTest,
-  onRewrite,
-  onBenchmark,
+  focusNonce,
+  onChanged,
 }: {
   clause: Clause;
-  onStressTest: (id: string) => void;
-  onRewrite: (id: string) => void;
-  onBenchmark: (id: string) => void;
+  /** Changes whenever a chat citation points at this clause. */
+  focusNonce?: number;
+  /** Refreshes the contract after the clause or its scores changed. */
+  onChanged: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [actionResult, setActionResult] = useState<any>(null);
+  const [debateOpen, setDebateOpen] = useState(false);
+  const [highlighted, setHighlighted] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  const debate = clause.debates?.[0] ?? null;
+
+  useEffect(() => {
+    if (!focusNonce) return;
+    setExpanded(true);
+    setHighlighted(true);
+    // Wait for the clauses tab to render before scrolling.
+    const scroll = setTimeout(() => cardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+    const fade = setTimeout(() => setHighlighted(false), 2200);
+    return () => {
+      clearTimeout(scroll);
+      clearTimeout(fade);
+    };
+  }, [focusNonce]);
 
   const analysis = clause.analysisJson;
   const hasScores =
@@ -211,7 +242,14 @@ function ClauseCard({
   }
 
   return (
-    <div className="glass-card overflow-hidden transition-all duration-200 hover:border-primary/25">
+    <div
+      ref={cardRef}
+      className={cn(
+        "glass-card scroll-mt-4 overflow-hidden transition-all duration-200 hover:border-primary/25",
+        // An outline, because the card's own box-shadow would hide a ring.
+        highlighted && "outline outline-2 outline-offset-2 outline-[#006A3B]"
+      )}
+    >
       <button
         onClick={() => setExpanded(!expanded)}
         className="flex w-full items-center justify-between px-5 py-4 text-left hover:bg-muted/50 transition-colors"
@@ -232,6 +270,16 @@ function ClauseCard({
           </div>
         </div>
         <div className="flex items-center gap-3 shrink-0">
+          {debate && (
+            <Badge
+              variant={getStrengthVariant(debate.resilienceScore)}
+              className="hidden gap-1 sm:inline-flex"
+              title={`Break My Clause: ${DEBATE_WINNER_LABEL[debate.winner] ?? debate.winner}`}
+            >
+              <Swords className="h-3 w-3" />
+              Resilience: {formatScore(debate.resilienceScore)}
+            </Badge>
+          )}
           {hasScores && (
             <div className="hidden sm:flex items-center gap-2">
               {clause.riskScore !== null && (
@@ -275,8 +323,14 @@ function ClauseCard({
           </div>
 
           {/* Scores (mobile) */}
-          {hasScores && (
+          {(hasScores || debate) && (
             <div className="flex flex-wrap gap-2 sm:hidden">
+              {debate && (
+                <Badge variant={getStrengthVariant(debate.resilienceScore)} className="gap-1">
+                  <Swords className="h-3 w-3" />
+                  Resilience: {formatScore(debate.resilienceScore)}
+                </Badge>
+              )}
               {clause.riskScore !== null && (
                 <Badge variant={getRiskVariant(clause.riskScore)}>
                   Risk: {formatScore(clause.riskScore)}
@@ -386,6 +440,37 @@ function ClauseCard({
             </div>
           )}
 
+          {/* Break My Clause */}
+          <div className="flex flex-col gap-3 rounded-lg border border-[#F5C2C4] bg-[#FDF3F3]/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="flex items-center gap-1.5 text-sm font-semibold text-[#282828]">
+                <Swords className="h-4 w-4 text-[#E5484D]" />
+                Break My Clause
+              </p>
+              <p className="mt-0.5 text-xs text-[#868686]">
+                {debate
+                  ? `${DEBATE_WINNER_LABEL[debate.winner] ?? "Debated"} · resilience ${formatScore(debate.resilienceScore)}/100 · ${formatDate(debate.createdAt)}`
+                  : "A Challenger tries to break this clause, a Defender protects it, and a judge scores who prevails."}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              className="shrink-0 gap-1.5 bg-[#E5484D] text-xs text-white hover:bg-[#d13a3f]"
+              onClick={() => setDebateOpen(true)}
+            >
+              <Swords className="h-3.5 w-3.5" />
+              {debate ? "View debate" : "Break My Clause"}
+            </Button>
+          </div>
+
+          <ClauseDebateDialog
+            clause={clause}
+            open={debateOpen}
+            onOpenChange={setDebateOpen}
+            onDebated={onChanged}
+            onRevisionApplied={onChanged}
+          />
+
           {/* Action Buttons */}
           <div className="flex flex-wrap gap-2">
             <Button
@@ -483,6 +568,17 @@ export default function ContractDetailPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [tab, setTab] = useState("clauses");
+  const [chatOpen, setChatOpen] = useState(false);
+  const [focus, setFocus] = useState<{ clauseNumber: number; nonce: number } | null>(null);
+
+  /** Jumps to a clause cited in the chat. */
+  const citeClause = useCallback((clauseNumber: number) => {
+    setTab("clauses");
+    setFocus({ clauseNumber, nonce: Date.now() });
+    // On small screens the chat covers the page.
+    if (!window.matchMedia("(min-width: 1024px)").matches) setChatOpen(false);
+  }, []);
 
   const fetchContract = useCallback(async () => {
     try {
@@ -522,6 +618,8 @@ export default function ContractDetailPage() {
         url.searchParams.delete("analyze");
         window.history.replaceState(null, "", url.pathname + url.search);
         if (loaded && loaded.status !== "analyzed") handleAnalyze();
+        // The chat works on the text right away, so it can be used while the analysis runs.
+        if (loaded && window.matchMedia("(min-width: 1024px)").matches) setChatOpen(true);
       }
     });
   }, [fetchContract, handleAnalyze]);
@@ -551,379 +649,409 @@ export default function ContractDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Back + Header */}
-      <div>
-        <Link
-          href="/contracts"
-          className="mb-4 inline-flex items-center gap-1 text-sm text-[#868686] transition-colors hover:text-[#006A3B]"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Repository
-        </Link>
-
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <h1 className="break-words text-[32px] font-medium leading-tight tracking-[-0.08px] text-black">
-              {contract.title}
-            </h1>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <JurisdictionSelect
-                value={toJurisdictionCode(contract.jurisdiction)}
-                onChange={changeJurisdiction}
-                disabled={analyzing}
-                className="h-7 w-auto gap-1.5 border-[#DDDDDD] px-2 text-xs"
-              />
-              {contract.contractType && <Badge variant="secondary">{contract.contractType}</Badge>}
-              <StageBadge stage={analyzing ? "Analyzing" : mapStatusToStage(contract.status)} />
-              <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Clock className="h-3 w-3" />
-                {formatDate(contract.createdAt)}
-              </span>
-            </div>
-          </div>
-          <Button
-            className="shrink-0 gap-2 bg-[#006A3B] hover:bg-[#005a32]"
-            disabled={analyzing}
-            onClick={handleAnalyze}
+    <>
+      <div className={cn("space-y-6 transition-[padding] duration-300", chatOpen && "lg:pr-[420px]")}>
+        {/* Back + Header */}
+        <div>
+          <Link
+            href="/contracts"
+            className="mb-4 inline-flex items-center gap-1 text-sm text-[#868686] transition-colors hover:text-[#006A3B]"
           >
-            {analyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {analyzing
-              ? `Analyzing ${contract.clauses.length} clauses…`
-              : contract.status === "analyzed"
-                ? "Re-analyze"
-                : "Analyze Contract"}
-          </Button>
-        </div>
-      </div>
+            <ArrowLeft className="h-4 w-4" />
+            Back to Repository
+          </Link>
 
-      {analysisError && (
-        <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3">
-          <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
-          <p className="text-sm text-red-600">{analysisError}</p>
-        </div>
-      )}
-
-      {/* Score Cards */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <div className="glass-card p-6 flex flex-col items-center">
-          <CircularScore
-            score={contract.riskScore}
-            label="Risk Score"
-            color={getScoreColor(contract.riskScore)}
-          />
-        </div>
-        <div className="glass-card p-6 flex flex-col items-center">
-          <CircularScore
-            score={contract.biasScore}
-            label="Bias Score"
-            color={getScoreColor(contract.biasScore)}
-          />
-        </div>
-        <div className="glass-card p-6 flex flex-col items-center">
-          <CircularScore
-            score={contract.strengthScore}
-            label="Strength Score"
-            color={getStrengthColor(contract.strengthScore)}
-          />
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <Tabs defaultValue="clauses">
-        <TabsList className="bg-muted/60 border border-border">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="clauses">
-            Clauses ({contract.clauses.length})
-          </TabsTrigger>
-          <TabsTrigger value="analysis">Analysis</TabsTrigger>
-          <TabsTrigger value="timeline">Timeline</TabsTrigger>
-        </TabsList>
-
-        {/* Overview Tab */}
-        <TabsContent value="overview" className="space-y-6 mt-6">
-          {contract.summary && (
-            <div className="glass-card p-6">
-              <h3 className="text-sm font-semibold mb-3">Summary</h3>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                {contract.summary}
-              </p>
-            </div>
-          )}
-
-          <div className="glass-card p-6">
-            <h3 className="text-sm font-semibold mb-4">Contract Details</h3>
-            <dl className="grid gap-4 sm:grid-cols-2">
-              {[
-                { label: "File Name", value: contract.fileName },
-                { label: "File Type", value: contract.fileType.toUpperCase() },
-                { label: "Jurisdiction", value: jurisdictionName(contract.jurisdiction) },
-                {
-                  label: "Contract Type",
-                  value: contract.contractType || "Not specified",
-                },
-                { label: "Total Clauses", value: contract.clauses.length },
-                {
-                  label: "Analyses Run",
-                  value: contract.analyses.length,
-                },
-                {
-                  label: "Created",
-                  value: new Date(contract.createdAt).toLocaleString(),
-                },
-                {
-                  label: "Last Updated",
-                  value: new Date(contract.updatedAt).toLocaleString(),
-                },
-              ].map(({ label, value }) => (
-                <div key={label}>
-                  <dt className="text-xs text-muted-foreground">{label}</dt>
-                  <dd className="text-sm font-medium mt-0.5">{value}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-
-          {/* Clause Score Distribution */}
-          {contract.clauses.some((c) => c.riskScore !== null) && (
-            <div className="glass-card p-6">
-              <h3 className="text-sm font-semibold mb-4">
-                Clause Risk Distribution
-              </h3>
-              <div className="space-y-3">
-                {contract.clauses
-                  .filter((c) => c.riskScore !== null)
-                  .sort((a, b) => (b.riskScore ?? 0) - (a.riskScore ?? 0))
-                  .map((clause) => (
-                    <div key={clause.id} className="flex items-center gap-3">
-                      <span className="text-xs text-muted-foreground w-24 truncate shrink-0">
-                        {clause.clauseTitle || `Clause ${clause.clauseNumber}`}
-                      </span>
-                      <div className="flex-1">
-                        <Progress
-                          value={clause.riskScore!}
-                          className="h-2 bg-muted"
-                        />
-                      </div>
-                      <Badge
-                        variant={getRiskVariant(clause.riskScore)}
-                        className="shrink-0"
-                      >
-                        {formatScore(clause.riskScore!)}
-                      </Badge>
-                    </div>
-                  ))}
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <h1 className="break-words text-[32px] font-medium leading-tight tracking-[-0.08px] text-black">
+                {contract.title}
+              </h1>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <JurisdictionSelect
+                  value={toJurisdictionCode(contract.jurisdiction)}
+                  onChange={changeJurisdiction}
+                  disabled={analyzing}
+                  className="h-7 w-auto gap-1.5 border-[#DDDDDD] px-2 text-xs"
+                />
+                {contract.contractType && <Badge variant="secondary">{contract.contractType}</Badge>}
+                <StageBadge stage={analyzing ? "Analyzing" : mapStatusToStage(contract.status)} />
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Clock className="h-3 w-3" />
+                  {formatDate(contract.createdAt)}
+                </span>
               </div>
             </div>
-          )}
-        </TabsContent>
-
-        {/* Clauses Tab */}
-        <TabsContent value="clauses" className="space-y-3 mt-6">
-          {contract.clauses.length === 0 ? (
-            <div className="glass-card p-12 text-center">
-              <FileText className="h-10 w-10 text-muted-foreground/50 mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">
-                No clauses extracted yet. Run analysis to extract and score
-                clauses.
-              </p>
-            </div>
-          ) : (
-            contract.clauses.map((clause) => (
-              <ClauseCard
-                key={clause.id}
-                clause={clause}
-                onStressTest={(id) => {}}
-                onRewrite={(id) => {}}
-                onBenchmark={(id) => {}}
-              />
-            ))
-          )}
-        </TabsContent>
-
-        {/* Analysis Tab */}
-        <TabsContent value="analysis" className="space-y-6 mt-6">
-          {contract.analyses.length === 0 ? (
-            <div className="glass-card p-12 text-center">
-              <BarChart3 className="h-10 w-10 text-muted-foreground/50 mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground mb-4">
-                No analysis results yet.
-              </p>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <Button
+                variant="outline"
+                className="gap-2 border-[#006A3B]/40 text-[#006A3B] hover:bg-[#F2F8F5] hover:text-[#006A3B]"
+                onClick={() => setChatOpen((v) => !v)}
+              >
+                <MessagesSquare className="h-4 w-4" />
+                {chatOpen ? "Hide chat" : "Chat with document"}
+              </Button>
               <Button
                 className="gap-2 bg-[#006A3B] hover:bg-[#005a32]"
                 disabled={analyzing}
                 onClick={handleAnalyze}
               >
-                {analyzing ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Sparkles className="h-4 w-4" />
-                )}
-                Run Analysis
+                {analyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {analyzing
+                  ? `Analyzing ${contract.clauses.length} clauses…`
+                  : contract.status === "analyzed"
+                    ? "Re-analyze"
+                    : "Analyze Contract"}
               </Button>
             </div>
-          ) : (
-            contract.analyses.map((analysis) => (
-              <div key={analysis.id} className="glass-card p-6 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Badge variant="secondary" className="capitalize">
-                      {analysis.analysisType}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      {new Date(analysis.createdAt).toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {analysis.riskScore !== null && (
-                      <Badge variant={getRiskVariant(analysis.riskScore)}>
-                        Risk: {formatScore(analysis.riskScore)}
-                      </Badge>
-                    )}
-                    {analysis.confidenceScore !== null && (
-                      <span className="text-xs text-muted-foreground">
-                        Confidence:{" "}
-                        {Math.round(analysis.confidenceScore)}%
-                      </span>
-                    )}
-                  </div>
-                </div>
+          </div>
+        </div>
 
-                {/* Loopholes */}
-                {analysis.resultJson?.loopholes && (
-                  <div>
-                    <h4 className="text-xs font-semibold text-orange-400 uppercase tracking-wider mb-2">
-                      Detected Loopholes
-                    </h4>
-                    {typeof analysis.resultJson.loopholes === "string" ? (
-                      <p className="text-sm text-muted-foreground">
-                        {analysis.resultJson.loopholes}
-                      </p>
-                    ) : (
-                      <pre className="text-xs text-muted-foreground whitespace-pre-wrap bg-muted/50 rounded-lg p-3 overflow-x-auto">
-                        {JSON.stringify(
-                          analysis.resultJson.loopholes,
-                          null,
-                          2
-                        )}
-                      </pre>
-                    )}
-                  </div>
-                )}
+        {analysisError && (
+          <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
+            <p className="text-sm text-red-600">{analysisError}</p>
+          </div>
+        )}
 
-                {/* Fairness */}
-                {analysis.resultJson?.fairness && (
-                  <div>
-                    <h4 className="text-xs font-semibold text-[#006A3B] uppercase tracking-wider mb-2">
-                      Fairness Assessment
-                    </h4>
-                    {typeof analysis.resultJson.fairness === "string" ? (
-                      <p className="text-sm text-muted-foreground">
-                        {analysis.resultJson.fairness}
-                      </p>
-                    ) : (
-                      <pre className="text-xs text-muted-foreground whitespace-pre-wrap bg-muted/50 rounded-lg p-3 overflow-x-auto">
-                        {JSON.stringify(
-                          analysis.resultJson.fairness,
-                          null,
-                          2
-                        )}
-                      </pre>
-                    )}
-                  </div>
-                )}
+        {/* Score Cards */}
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="glass-card p-6 flex flex-col items-center">
+            <CircularScore
+              score={contract.riskScore}
+              label="Risk Score"
+              color={getScoreColor(contract.riskScore)}
+            />
+          </div>
+          <div className="glass-card p-6 flex flex-col items-center">
+            <CircularScore
+              score={contract.biasScore}
+              label="Bias Score"
+              color={getScoreColor(contract.biasScore)}
+            />
+          </div>
+          <div className="glass-card p-6 flex flex-col items-center">
+            <CircularScore
+              score={contract.strengthScore}
+              label="Strength Score"
+              color={getStrengthColor(contract.strengthScore)}
+            />
+          </div>
+        </div>
 
-                {/* Other analysis types (ethics, benchmark) */}
-                {analysis.resultJson &&
-                  !analysis.resultJson.loopholes &&
-                  !analysis.resultJson.fairness &&
-                  !analysis.resultJson.clauseResults && (
-                    <pre className="text-xs text-muted-foreground whitespace-pre-wrap bg-muted/50 rounded-lg p-3 overflow-x-auto max-h-96">
-                      {JSON.stringify(analysis.resultJson, null, 2)}
-                    </pre>
-                  )}
+        {/* Tabs */}
+        <Tabs value={tab} onValueChange={setTab}>
+          <TabsList className="bg-muted/60 border border-border">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="clauses">
+              Clauses ({contract.clauses.length})
+            </TabsTrigger>
+            <TabsTrigger value="analysis">Analysis</TabsTrigger>
+            <TabsTrigger value="timeline">Timeline</TabsTrigger>
+          </TabsList>
 
-                {/* Clause-level results */}
-                {analysis.resultJson?.clauseResults &&
-                  analysis.resultJson.clauseResults.length > 0 && (
-                    <div>
-                      <h4 className="text-xs font-semibold text-purple-400 uppercase tracking-wider mb-2">
-                        Clause Results ({analysis.resultJson.clauseResults.length})
-                      </h4>
-                      <div className="space-y-2">
-                        {analysis.resultJson.clauseResults
-                          .slice(0, 5)
-                          .map((cr: any, i: number) => (
-                            <div
-                              key={i}
-                              className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2"
-                            >
-                              <span className="text-xs text-muted-foreground truncate">
-                                Clause {i + 1}
-                              </span>
-                              <div className="flex gap-2">
-                                {cr.risk_score != null && (
-                                  <Badge
-                                    variant={getRiskVariant(cr.risk_score)}
-                                  >
-                                    R: {formatScore(cr.risk_score)}
-                                  </Badge>
-                                )}
-                                {cr.bias_score != null && (
-                                  <Badge
-                                    variant={getRiskVariant(cr.bias_score)}
-                                  >
-                                    B: {formatScore(cr.bias_score)}
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  )}
+          {/* Overview Tab */}
+          <TabsContent value="overview" className="space-y-6 mt-6">
+            {contract.summary && (
+              <div className="glass-card p-6">
+                <h3 className="text-sm font-semibold mb-3">Summary</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  {contract.summary}
+                </p>
               </div>
-            ))
-          )}
-        </TabsContent>
+            )}
 
-        {/* Timeline Tab */}
-        <TabsContent value="timeline" className="mt-6">
-          {contract.clauses.every((c) => c._count.versions === 0) ? (
-            <div className="glass-card p-12 text-center">
-              <Clock className="h-10 w-10 text-muted-foreground/50 mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">
-                No clause versions yet. Rewrites and edits will appear here.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {contract.clauses
-                .filter((c) => c._count.versions > 0)
-                .map((clause) => (
-                  <div key={clause.id} className="glass-card p-5">
-                    <div className="flex items-center gap-3">
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-purple-500/10 text-xs font-bold text-purple-400">
-                        {clause.clauseNumber}
-                      </span>
-                      <div>
-                        <p className="text-sm font-medium">
-                          {clause.clauseTitle ||
-                            `Clause ${clause.clauseNumber}`}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {clause._count.versions} version(s) &middot;{" "}
-                          {clause._count.stressTests} stress test(s)
-                        </p>
-                      </div>
-                    </div>
+            <div className="glass-card p-6">
+              <h3 className="text-sm font-semibold mb-4">Contract Details</h3>
+              <dl className="grid gap-4 sm:grid-cols-2">
+                {[
+                  { label: "File Name", value: contract.fileName },
+                  { label: "File Type", value: contract.fileType.toUpperCase() },
+                  { label: "Jurisdiction", value: jurisdictionName(contract.jurisdiction) },
+                  {
+                    label: "Contract Type",
+                    value: contract.contractType || "Not specified",
+                  },
+                  { label: "Total Clauses", value: contract.clauses.length },
+                  {
+                    label: "Analyses Run",
+                    value: contract.analyses.length,
+                  },
+                  {
+                    label: "Created",
+                    value: new Date(contract.createdAt).toLocaleString(),
+                  },
+                  {
+                    label: "Last Updated",
+                    value: new Date(contract.updatedAt).toLocaleString(),
+                  },
+                ].map(({ label, value }) => (
+                  <div key={label}>
+                    <dt className="text-xs text-muted-foreground">{label}</dt>
+                    <dd className="text-sm font-medium mt-0.5">{value}</dd>
                   </div>
                 ))}
+              </dl>
             </div>
-          )}
-        </TabsContent>
-      </Tabs>
-    </div>
+
+            {/* Clause Score Distribution */}
+            {contract.clauses.some((c) => c.riskScore !== null) && (
+              <div className="glass-card p-6">
+                <h3 className="text-sm font-semibold mb-4">
+                  Clause Risk Distribution
+                </h3>
+                <div className="space-y-3">
+                  {contract.clauses
+                    .filter((c) => c.riskScore !== null)
+                    .sort((a, b) => (b.riskScore ?? 0) - (a.riskScore ?? 0))
+                    .map((clause) => (
+                      <div key={clause.id} className="flex items-center gap-3">
+                        <span className="text-xs text-muted-foreground w-24 truncate shrink-0">
+                          {clause.clauseTitle || `Clause ${clause.clauseNumber}`}
+                        </span>
+                        <div className="flex-1">
+                          <Progress
+                            value={clause.riskScore!}
+                            className="h-2 bg-muted"
+                          />
+                        </div>
+                        <Badge
+                          variant={getRiskVariant(clause.riskScore)}
+                          className="shrink-0"
+                        >
+                          {formatScore(clause.riskScore!)}
+                        </Badge>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Clauses Tab */}
+          <TabsContent value="clauses" className="space-y-3 mt-6">
+            {contract.clauses.length === 0 ? (
+              <div className="glass-card p-12 text-center">
+                <FileText className="h-10 w-10 text-muted-foreground/50 mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground">
+                  No clauses extracted yet. Run analysis to extract and score
+                  clauses.
+                </p>
+              </div>
+            ) : (
+              contract.clauses.map((clause) => (
+                <ClauseCard
+                  key={clause.id}
+                  clause={clause}
+                  focusNonce={focus?.clauseNumber === clause.clauseNumber ? focus.nonce : undefined}
+                  onChanged={fetchContract}
+                />
+              ))
+            )}
+          </TabsContent>
+
+          {/* Analysis Tab */}
+          <TabsContent value="analysis" className="space-y-6 mt-6">
+            {contract.analyses.length === 0 ? (
+              <div className="glass-card p-12 text-center">
+                <BarChart3 className="h-10 w-10 text-muted-foreground/50 mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground mb-4">
+                  No analysis results yet.
+                </p>
+                <Button
+                  className="gap-2 bg-[#006A3B] hover:bg-[#005a32]"
+                  disabled={analyzing}
+                  onClick={handleAnalyze}
+                >
+                  {analyzing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4" />
+                  )}
+                  Run Analysis
+                </Button>
+              </div>
+            ) : (
+              contract.analyses.map((analysis) => (
+                <div key={analysis.id} className="glass-card p-6 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Badge variant="secondary" className="capitalize">
+                        {analysis.analysisType}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {new Date(analysis.createdAt).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {analysis.riskScore !== null && (
+                        <Badge variant={getRiskVariant(analysis.riskScore)}>
+                          Risk: {formatScore(analysis.riskScore)}
+                        </Badge>
+                      )}
+                      {analysis.confidenceScore !== null && (
+                        <span className="text-xs text-muted-foreground">
+                          Confidence:{" "}
+                          {Math.round(analysis.confidenceScore)}%
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Loopholes */}
+                  {analysis.resultJson?.loopholes && (
+                    <div>
+                      <h4 className="text-xs font-semibold text-orange-400 uppercase tracking-wider mb-2">
+                        Detected Loopholes
+                      </h4>
+                      {typeof analysis.resultJson.loopholes === "string" ? (
+                        <p className="text-sm text-muted-foreground">
+                          {analysis.resultJson.loopholes}
+                        </p>
+                      ) : (
+                        <pre className="text-xs text-muted-foreground whitespace-pre-wrap bg-muted/50 rounded-lg p-3 overflow-x-auto">
+                          {JSON.stringify(
+                            analysis.resultJson.loopholes,
+                            null,
+                            2
+                          )}
+                        </pre>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Fairness */}
+                  {analysis.resultJson?.fairness && (
+                    <div>
+                      <h4 className="text-xs font-semibold text-[#006A3B] uppercase tracking-wider mb-2">
+                        Fairness Assessment
+                      </h4>
+                      {typeof analysis.resultJson.fairness === "string" ? (
+                        <p className="text-sm text-muted-foreground">
+                          {analysis.resultJson.fairness}
+                        </p>
+                      ) : (
+                        <pre className="text-xs text-muted-foreground whitespace-pre-wrap bg-muted/50 rounded-lg p-3 overflow-x-auto">
+                          {JSON.stringify(
+                            analysis.resultJson.fairness,
+                            null,
+                            2
+                          )}
+                        </pre>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Other analysis types (ethics, benchmark) */}
+                  {analysis.resultJson &&
+                    !analysis.resultJson.loopholes &&
+                    !analysis.resultJson.fairness &&
+                    !analysis.resultJson.clauseResults && (
+                      <pre className="text-xs text-muted-foreground whitespace-pre-wrap bg-muted/50 rounded-lg p-3 overflow-x-auto max-h-96">
+                        {JSON.stringify(analysis.resultJson, null, 2)}
+                      </pre>
+                    )}
+
+                  {/* Clause-level results */}
+                  {analysis.resultJson?.clauseResults &&
+                    analysis.resultJson.clauseResults.length > 0 && (
+                      <div>
+                        <h4 className="text-xs font-semibold text-purple-400 uppercase tracking-wider mb-2">
+                          Clause Results ({analysis.resultJson.clauseResults.length})
+                        </h4>
+                        <div className="space-y-2">
+                          {analysis.resultJson.clauseResults
+                            .slice(0, 5)
+                            .map((cr: any, i: number) => (
+                              <div
+                                key={i}
+                                className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2"
+                              >
+                                <span className="text-xs text-muted-foreground truncate">
+                                  Clause {i + 1}
+                                </span>
+                                <div className="flex gap-2">
+                                  {cr.risk_score != null && (
+                                    <Badge
+                                      variant={getRiskVariant(cr.risk_score)}
+                                    >
+                                      R: {formatScore(cr.risk_score)}
+                                    </Badge>
+                                  )}
+                                  {cr.bias_score != null && (
+                                    <Badge
+                                      variant={getRiskVariant(cr.bias_score)}
+                                    >
+                                      B: {formatScore(cr.bias_score)}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+                </div>
+              ))
+            )}
+          </TabsContent>
+
+          {/* Timeline Tab */}
+          <TabsContent value="timeline" className="mt-6">
+            {contract.clauses.every((c) => c._count.versions === 0) ? (
+              <div className="glass-card p-12 text-center">
+                <Clock className="h-10 w-10 text-muted-foreground/50 mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground">
+                  No clause versions yet. Rewrites and edits will appear here.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {contract.clauses
+                  .filter((c) => c._count.versions > 0)
+                  .map((clause) => (
+                    <div key={clause.id} className="glass-card p-5">
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-purple-500/10 text-xs font-bold text-purple-400">
+                          {clause.clauseNumber}
+                        </span>
+                        <div>
+                          <p className="text-sm font-medium">
+                            {clause.clauseTitle ||
+                              `Clause ${clause.clauseNumber}`}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {clause._count.versions} version(s) &middot;{" "}
+                            {clause._count.stressTests} stress test(s)
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+      </div>
+
+      {!chatOpen && (
+        <button
+          type="button"
+          onClick={() => setChatOpen(true)}
+          className="fixed bottom-6 right-6 z-30 flex items-center gap-2 rounded-full bg-[#006A3B] px-5 py-3 text-sm font-medium text-white shadow-lg transition-transform hover:scale-[1.03] hover:bg-[#005a32]"
+        >
+          <MessagesSquare className="h-4 w-4" />
+          Ask this document
+        </button>
+      )}
+
+      <DocumentChat
+        contractId={contract.id}
+        clauses={contract.clauses}
+        open={chatOpen}
+        onClose={() => setChatOpen(false)}
+        onCiteClause={citeClause}
+      />
+    </>
   );
 }

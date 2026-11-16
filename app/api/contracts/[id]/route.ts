@@ -18,7 +18,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
       include: {
         clauses: {
           orderBy: { clauseNumber: "asc" },
-          include: { _count: { select: { versions: true, stressTests: true } } },
+          include: {
+            _count: { select: { versions: true, stressTests: true } },
+            debates: {
+              orderBy: { createdAt: "desc" },
+              take: 1,
+              select: { resilienceScore: true, winner: true, createdAt: true },
+            },
+          },
         },
         analyses: { orderBy: { createdAt: "desc" }, take: 5 },
       },

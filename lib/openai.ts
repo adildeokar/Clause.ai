@@ -20,3 +20,6 @@ export const AI_MODEL = process.env.AI_MODEL || "gpt-4o-mini";
 
 /** Cheapest embedding model ($0.02 per 1M tokens), used for chat retrieval. */
 export const EMBEDDING_MODEL = "text-embedding-3-small";
+
+/** Shortened embeddings keep most of the accuracy at a third of the storage. */
+export const EMBEDDING_DIMENSIONS = 512;

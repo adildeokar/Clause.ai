@@ -65,8 +65,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           changedBy: user.id,
         },
       }),
-      // The text changed, so its chat-retrieval embedding is stale.
+      // The text changed, so its chat-retrieval embedding and debates are stale.
       db.clauseEmbedding.deleteMany({ where: { clauseId: clause.id } }),
+      db.clauseDebate.deleteMany({ where: { clauseId: clause.id } }),
     ]);
 
     return NextResponse.json(updatedClause);

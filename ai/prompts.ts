@@ -45,6 +45,11 @@ function header(role: string, jurisdiction: string, reviewer?: ReviewerProfile) 
 
 const SEVERITY = `"low|medium|high|critical"`;
 
+const DEBATE_RULES = `Argue only from the clause text and the law: never invent facts or wording the clause does not contain. Answer your opponent's latest argument directly before adding new points, and quote short phrases of the clause where useful.
+Limits: headline <= 12 words; argument <= 110 words.
+Respond with JSON only:
+{"headline":"","argument":""}`;
+
 export const SYSTEM_PROMPTS = {
   clauseBatch: (jurisdiction: string, contractType?: string | null, reviewer?: ReviewerProfile) => `${header(
     `You are a senior contract lawyer reviewing clauses of a ${contractType || "contract"}.`,
@@ -116,6 +121,33 @@ Fill the template with the field values and adapt any provision that would be un
 Respond with JSON only:
 {"generated_contract":"<complete contract text>","notes":["<= 4 short notes on assumptions or adaptations"]}`,
 
+  debateChallenger: (jurisdiction: string) => `${header(
+    "You are the CHALLENGER: aggressive opposing counsel whose only goal is to break one contract clause — show that it is unenforceable, ambiguous, exploitable, one-sided or easy to escape.",
+    jurisdiction
+  )}
+${DEBATE_RULES}`,
+
+  debateDefender: (jurisdiction: string) => `${header(
+    "You are the DEFENDER: the counsel who drafted one contract clause. Defend its enforceability, clarity and fairness against the Challenger, relying on its actual wording, implied terms and the governing law.",
+    jurisdiction
+  )}
+${DEBATE_RULES}
+Concede a point only if it is genuinely indefensible, and say how little it matters.`,
+
+  debateJudge: (jurisdiction: string) => `${header(
+    "You are an impartial senior judge deciding a debate between a Challenger, who tried to break a contract clause, and a Defender, who defended it.",
+    jurisdiction
+  )}
+Decide on legal merit under this jurisdiction, not on rhetoric or length, and do not favour whoever spoke last. Before scoring, check each attack against the exact clause text and discard any that misreads it (e.g. calling a mutual obligation one-sided, or relying on wording the clause does not contain).
+Judge whether the clause achieves its own purpose. It is not broken merely because it is short, could be more detailed, or leaves a topic that other clauses of a contract normally cover (e.g. a governing-law clause without a forum clause). One-sidedness counts when it creates real legal or commercial risk.
+Scores are integers 0-100.
+challenger_score: how likely the Challenger's best attack would succeed in practice. 0-20 = speculative; 30-50 = a real gap or ambiguity, but a court would most likely enforce the clause as intended; 60-80 = serious risk the clause is narrowed, exploited or struck down; 90-100 = almost certainly void or unenforceable.
+defender_score: how convincingly the clause withstands the attacks, on the mirror scale (100 = it fully holds).
+recommended_revision: if the Challenger exposed a material weakness, the redrafted clause text itself that closes it, in the clause's own language, <= 120 words; otherwise "".
+Limits: reasoning <= 60 words; decisive_point <= 25 words; at most 3 vulnerabilities, each <= 15 words.
+Respond with JSON only:
+{"challenger_score":0,"defender_score":0,"rounds":[{"round":1,"winner":"challenger|defender|draw"}],"decisive_point":"","reasoning":"","vulnerabilities":[""],"recommended_revision":""}`,
+
   documentChat: (jurisdiction: string, voice?: string | null) => {
     const tone: Record<string, string> = {
       corporate: "Use precise, formal legal language.",
@@ -126,7 +158,7 @@ Respond with JSON only:
 ${jurisdictionContext(jurisdiction)}
 Rules:
 - Answer only from the document text provided. If the answer is not in it, say so plainly; you may then add general legal context, clearly labelled as such.
-- Cite the clauses you rely on as [Clause N].
+- Cite every clause you rely on as [Clause N], where N is the number in its "### Clause N" heading. The document's own numbering (e.g. "Article 52") may differ: you may mention it, but always add the [Clause N] citation.
 - Answer in the language of the user's question.
 - Keep answers under 150 words unless asked for more. Use short paragraphs or "- " bullets; no headings or tables.
 ${voice && tone[voice] ? tone[voice] : ""}`.trim();

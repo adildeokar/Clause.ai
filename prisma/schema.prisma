@@ -22,6 +22,7 @@ model User {
   analyses      AnalysisResult[]
   riskProfile   RiskProfile?
   chatMessages  ChatMessage[]
+  clauseDebates ClauseDebate[]
 
   @@map("users")
 }
@@ -71,6 +72,7 @@ model Clause {
   contract      Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
   versions      ClauseVersion[]
   stressTests   StressTest[]
+  debates       ClauseDebate[]
   embedding     ClauseEmbedding?
 
   @@index([contractId])
@@ -101,6 +103,26 @@ model ChatMessage {
 
   @@index([contractId, userId, createdAt])
   @@map("chat_messages")
+}
+
+// "Break My Clause": a Challenger and a Defender argue over a clause and a judge scores them.
+model ClauseDebate {
+  id              String    @id @default(cuid())
+  clauseId        String
+  userId          String
+  transcript      Json      // [{ speaker, round, headline, argument }]
+  verdict         Json      // judge reasoning, round winners, vulnerabilities, revision
+  challengerScore Float
+  defenderScore   Float
+  resilienceScore Float     // 0-100, how well the clause survived (100 = unbreakable)
+  winner          String    // challenger | defender | draw
+  createdAt       DateTime  @default(now())
+
+  clause          Clause    @relation(fields: [clauseId], references: [id], onDelete: Cascade)
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([clauseId, createdAt])
+  @@map("clause_debates")
 }
 
 model ClauseVersion {
