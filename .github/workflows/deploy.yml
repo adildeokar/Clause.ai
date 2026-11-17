@@ -81,6 +81,7 @@ jobs:
         run: npm ci
 
       - name: Run Prisma migrations
-        run: npx prisma migrate deploy
+        # Retried once: a suspended Neon database can refuse the first connection.
+        run: npx prisma migrate deploy || (sleep 20 && npx prisma migrate deploy)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}

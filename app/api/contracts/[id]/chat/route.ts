@@ -121,6 +121,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
+      let failure: unknown = null;
       try {
         for await (const chunk of completion) {
           const delta = chunk.choices[0]?.delta?.content;
@@ -128,29 +129,33 @@ export async function POST(req: NextRequest, { params }: Params) {
           answer += delta;
           controller.enqueue(encoder.encode(delta));
         }
-        controller.close();
       } catch (error) {
         // An abort from the client also lands here; whatever was answered is still saved.
         if (!completion.controller.signal.aborted) {
           console.error("POST /api/contracts/[id]/chat stream error:", error);
-          try {
-            controller.error(error);
-          } catch {
-            // The stream is already closed.
-          }
+          failure = error;
         }
-      } finally {
-        answer = answer.trim();
-        if (answer) {
-          await db.chatMessage
-            .createMany({
-              data: [
-                { contractId: params.id, userId: user.id, role: "user", content: question, createdAt: askedAt },
-                { contractId: params.id, userId: user.id, role: "assistant", content: answer },
-              ],
-            })
-            .catch((error) => console.error("Failed to save chat messages:", error));
-        }
+      }
+
+      // Saved before the stream ends: a follow-up question must find this exchange in the
+      // history, and a serverless function may be frozen once the response is complete.
+      answer = answer.trim();
+      if (answer) {
+        await db.chatMessage
+          .createMany({
+            data: [
+              { contractId: params.id, userId: user.id, role: "user", content: question, createdAt: askedAt },
+              { contractId: params.id, userId: user.id, role: "assistant", content: answer },
+            ],
+          })
+          .catch((error) => console.error("Failed to save chat messages:", error));
+      }
+
+      try {
+        if (failure) controller.error(failure);
+        else controller.close();
+      } catch {
+        // The client already went away.
       }
     },
     cancel() {

@@ -6,9 +6,7 @@ import Link from "next/link";
 import {
   FileText,
   ArrowLeft,
-  Shield,
   AlertTriangle,
-  TrendingUp,
   Zap,
   PenTool,
   BarChart3,
@@ -16,7 +14,6 @@ import {
   ChevronUp,
   Loader2,
   Clock,
-  Scale,
   Sparkles,
   Swords,
   MessagesSquare,
@@ -31,6 +28,14 @@ import { JurisdictionSelect } from "@/components/app/jurisdiction-select";
 import { StageBadge } from "@/components/app/stage-badge";
 import { ClauseDebateDialog } from "@/components/app/clause-debate-dialog";
 import { DocumentChat } from "@/components/app/document-chat";
+import {
+  BenchmarkView,
+  EthicsView,
+  FairnessView,
+  LoopholesView,
+  RewriteView,
+  StressTestView,
+} from "@/components/app/analysis-results";
 import { mapStatusToStage } from "@/lib/design-tokens";
 import {
   jurisdictionName,
@@ -241,6 +246,16 @@ function ClauseCard({
     }
   }
 
+  async function applyRewrite(clauseText: string) {
+    const res = await fetch(`/api/clauses/${clause.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clauseText, changeReason: "AI rewrite (plain language)" }),
+    });
+    if (!res.ok) throw new Error("Failed to apply the rewrite");
+    onChanged();
+  }
+
   return (
     <div
       ref={cardRef}
@@ -432,10 +447,12 @@ function ClauseCard({
               </h4>
               {actionResult.error ? (
                 <p className="text-sm text-red-400">{actionResult.error}</p>
+              ) : actionResult.action === "stress-test" ? (
+                <StressTestView result={actionResult.data} />
+              ) : actionResult.action === "rewrite" ? (
+                <RewriteView result={actionResult.data} onApply={applyRewrite} />
               ) : (
-                <pre className="text-xs text-muted-foreground whitespace-pre-wrap overflow-x-auto">
-                  {JSON.stringify(actionResult.data, null, 2)}
-                </pre>
+                <BenchmarkView result={actionResult.data} />
               )}
             </div>
           )}
@@ -909,13 +926,7 @@ export default function ContractDetailPage() {
                           {analysis.resultJson.loopholes}
                         </p>
                       ) : (
-                        <pre className="text-xs text-muted-foreground whitespace-pre-wrap bg-muted/50 rounded-lg p-3 overflow-x-auto">
-                          {JSON.stringify(
-                            analysis.resultJson.loopholes,
-                            null,
-                            2
-                          )}
-                        </pre>
+                        <LoopholesView loopholes={analysis.resultJson.loopholes} />
                       )}
                     </div>
                   )}
@@ -931,13 +942,7 @@ export default function ContractDetailPage() {
                           {analysis.resultJson.fairness}
                         </p>
                       ) : (
-                        <pre className="text-xs text-muted-foreground whitespace-pre-wrap bg-muted/50 rounded-lg p-3 overflow-x-auto">
-                          {JSON.stringify(
-                            analysis.resultJson.fairness,
-                            null,
-                            2
-                          )}
-                        </pre>
+                        <FairnessView fairness={analysis.resultJson.fairness} />
                       )}
                     </div>
                   )}
@@ -946,11 +951,16 @@ export default function ContractDetailPage() {
                   {analysis.resultJson &&
                     !analysis.resultJson.loopholes &&
                     !analysis.resultJson.fairness &&
-                    !analysis.resultJson.clauseResults && (
+                    !analysis.resultJson.clauseResults &&
+                    (analysis.analysisType === "ethics" ? (
+                      <EthicsView result={analysis.resultJson} />
+                    ) : analysis.analysisType === "benchmark" ? (
+                      <BenchmarkView result={analysis.resultJson} />
+                    ) : (
                       <pre className="text-xs text-muted-foreground whitespace-pre-wrap bg-muted/50 rounded-lg p-3 overflow-x-auto max-h-96">
                         {JSON.stringify(analysis.resultJson, null, 2)}
                       </pre>
-                    )}
+                    ))}
 
                   {/* Clause-level results */}
                   {analysis.resultJson?.clauseResults &&
@@ -968,7 +978,7 @@ export default function ContractDetailPage() {
                                 className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2"
                               >
                                 <span className="text-xs text-muted-foreground truncate">
-                                  Clause {i + 1}
+                                  Clause {cr.clauseNumber ?? i + 1}
                                 </span>
                                 <div className="flex gap-2">
                                   {cr.risk_score != null && (

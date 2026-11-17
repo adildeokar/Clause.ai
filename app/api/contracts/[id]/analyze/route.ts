@@ -36,9 +36,16 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
         : [],
     };
 
+    // The review sees the same clause numbers the app shows, so its findings point at the right clause.
+    const numberedText = contract.clauses.length
+      ? contract.clauses
+          .map((c) => `### Clause ${c.clauseNumber}${c.clauseTitle ? ` — ${c.clauseTitle}` : ""}\n${c.clauseText}`)
+          .join("\n\n")
+      : contract.cleanedText;
+
     const [analyses, review] = await Promise.all([
       analyzeClauses(contract.clauses, contract.jurisdiction, contract.contractType, reviewer),
-      reviewContract(contract.cleanedText, contract.jurisdiction, contract.contractType, reviewer),
+      reviewContract(numberedText, contract.jurisdiction, contract.contractType, reviewer),
     ]);
 
     const scored = contract.clauses.filter((c) => analyses.has(c.clauseNumber));

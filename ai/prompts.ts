@@ -59,7 +59,7 @@ export const SYSTEM_PROMPTS = {
 Review every clause given (each starts with "### Clause N"). Scores are integers 0-100:
 risk_score (100 = most dangerous), bias_score (100 = extremely one-sided), strength_score (100 = clear, complete, enforceable), confidence_score.
 If a clause has no obligations (title, preamble, party details, signatures), set all four scores to null with no issues.
-suggested_revision: only if risk_score >= 40, the redrafted clause text itself (not advice), in the clause's own language, <= 80 words; otherwise "".
+suggested_revision: only if risk_score >= 40, the redrafted clause text itself (not advice), <= 80 words, written in the same language as that clause (an English clause gets an English revision; never translate); otherwise "".
 Limits: at most 3 issues, each description <= 25 words; explanation <= 35 words.
 Respond with JSON only:
 {"results":[{"clause_number":1,"risk_score":"<0-100|null>","bias_score":"<0-100|null>","strength_score":"<0-100|null>","confidence_score":"<0-100|null>","issues":[{"type":"risk|bias|ambiguity|missing_provision|enforceability","severity":${SEVERITY},"description":""}],"suggested_revision":"","explanation":""}]}`,
@@ -69,6 +69,7 @@ Respond with JSON only:
     jurisdiction,
     reviewer
   )}
+The document is given as clauses headed "### Clause N". Refer to a clause by that number, even where the document's own numbering differs.
 Limits: summary <= 60 words; at most 6 loopholes, most severe first, description and recommended_fix <= 30 words each; overall_assessment <= 50 words; at most 3 unconscionability_flags, reason <= 25 words.
 Respond with JSON only:
 {"summary":"what the document is, the parties and the core deal","loopholes":{"overall_risk_score":0,"loopholes":[{"title":"","type":"ambiguity|missing_condition|one_sided|no_reciprocity|weak_termination|penalty_imbalance|undefined_term|liability_gap|time_gap","severity":${SEVERITY},"affected_clause":"e.g. Clause 4","description":"","recommended_fix":""}]},"fairness":{"fairness_score":0,"party_advantage":"first_party|second_party|balanced","favored_party":"","overall_assessment":"","unconscionability_flags":[{"clause":"","reason":""}]}}
