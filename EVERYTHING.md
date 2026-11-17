@@ -1,360 +1,506 @@
 # Clause AI — Everything Document
 
-This is the **single reference** for the Clause project: what it is in plain language, how it works technically, where each piece lives in the repo, and how to run and ship it. It is written so both **non-technical readers** and **developers** can use the same file.
+The single reference for Clause AI: what every feature does, how it behaves, where it lives in the code, and what is still unfinished. Part 1 is written for anyone; later parts are for developers.
 
-**Package name:** `clause-ai` (npm)  
-**Product name:** Clause AI — Contract Intelligence Platform  
-**Repository root:** Next.js 14 monolith (App Router), TypeScript, Prisma, PostgreSQL.
+**Product:** Clause AI — Contract Intelligence Platform
+**Stack:** Next.js 14 (App Router) · TypeScript · Prisma 6 · PostgreSQL (Neon) · NextAuth · OpenAI · Tailwind CSS
+**Live data model, routes and limits below reflect the code on `main` as of 2026-10-11.**
 
----
+### Feature status at a glance
 
-## Part 1 — For everyone (what this is)
-
-### 1.1 Plain-language summary
-
-Clause AI is a **web application** that helps people work with **contracts** (agreements, NDAs, service terms, and similar documents). You can:
-
-- **Upload** a contract file (PDF, Word, text, etc.).
-- Have the system **extract text**, split it into **clauses**, and **store** everything securely per user.
-- Run **AI-assisted reviews**: risk and strength scores, loophole-style findings, fairness views, ethics/bias scanning, adversarial “what would the other side argue?” exercises, clause rewrites in different styles, and benchmarks against typical expectations.
-- Use **templates** to generate draft agreements by filling in fields (e.g. party names, dates).
-- See **dashboards and analytics** (charts, stats) built from stored data.
-
-**Important:** The product uses AI to **assist** review; it is **not** a substitute for a qualified lawyer. Outputs are probabilistic and must be verified by humans, especially for regulated or high-stakes matters.
-
-### 1.2 Who uses it
-
-- **Legal / compliance teams** prototyping review and consistency checks.
-- **Founders / operators** getting a structured first pass on vendor or customer paper.
-- **Admins** managing users (via database seed and settings patterns in the app).
-
-### 1.3 What “success” looks like for a user
-
-1. Sign in.  
-2. Upload or work from templates.  
-3. See clauses, scores, and AI-generated explanations and suggestions.  
-4. Optionally rewrite clauses or run stress tests on specific clauses.  
-5. Search across their own contracts and clauses.
+| Area | Status |
+|---|---|
+| Login, route protection | ✅ Working |
+| Upload (PDF, Word, ODT, RTF, TXT, MD, HTML, scans, photos) | ✅ Working |
+| Clause extraction (English, French, Portuguese headings) | ✅ Working |
+| Full contract analysis (risk, bias, strength, loopholes, fairness, summary) | ✅ Working |
+| Clause tools: stress test, rewrite (with "Apply rewrite"), benchmark | ✅ Working |
+| Break My Clause (two AI counsel debate a clause, a judge scores it) | ✅ Working |
+| Ethics scan | ✅ Working (started from the Analysis page) |
+| Jurisdictions: US, India, UK, **France, Brazil** | ✅ Working |
+| Drafting (clause rewriter) | ✅ Working |
+| Rule Book (generate contracts from templates, any jurisdiction, local language) | ✅ Working |
+| Dashboard, Repository, Analysis pages | ✅ Working on real data |
+| Settings → default jurisdiction | ✅ Saved |
+| Settings → name, risk profile, preferences, team | ⚠️ Interface only, not saved yet |
+| Analytics page | ⚠️ Shows sample data |
+| Chat with Document | ✅ Working |
 
 ---
 
-## Part 2 — Product surface (screens and areas)
+## Part 1 — For everyone
 
-| Area (route) | Purpose |
-|----------------|---------|
-| `/` | Public landing page: value proposition and sign-in links. |
-| `/login` | Credentials sign-in (NextAuth). |
-| `/dashboard` | Logged-in home / overview. |
-| `/contracts` | List and manage contracts. |
-| `/contracts/upload` | Upload flow for new documents. |
-| `/contracts/[id]` | Single contract detail and downstream actions. |
-| `/analysis` | Analysis hub for contract-level insights. |
-| `/drafting` | AI-assisted drafting experience. |
-| `/templates` | Browse and use contract templates. |
-| `/analytics` | Charts and reporting (Recharts). |
-| `/settings` | User preferences and profile-related UI. |
+### 1.1 What Clause AI is
 
-Authenticated app chrome lives under `app/(dashboard)/`, wrapped by `DashboardLayout` (sidebar, header, providers).
+Clause AI reads contracts for you. You upload a document — an NDA, a service agreement, terms of service, an employment contract — and it:
 
----
+1. extracts the text (even from scanned pages and photos),
+2. splits it into clauses using the document's own headings,
+3. scores every clause for **risk**, **one-sidedness (bias)** and **legal strength**,
+4. looks across the whole contract for **loopholes** and judges whether it is **fair** to both sides,
+5. writes a short **summary** of what the contract is,
+6. lets you **stress-test**, **rewrite** or **benchmark** any clause, and run an **ethics/bias scan**.
 
-## Part 3 — Technical architecture
+It also **drafts**: rewrite a clause in a different style, or generate a full contract from a template — adapted to the law of the country you choose, optionally written in French or Portuguese.
 
-### 3.1 High-level diagram
+Every AI answer takes the chosen **jurisdiction** into account: United States, India, United Kingdom, France or Brazil.
 
-```mermaid
-flowchart TB
-  subgraph client [Browser]
-    UI[React pages / components]
-  end
-  subgraph vercel [Next.js 14 App Router]
-    RSC[Server Components + Client Components]
-    API[Route Handlers /api/*]
-  end
-  subgraph services [External services]
-    OAI[OpenAI API]
-    PG[(PostgreSQL e.g. Neon)]
-  end
-  UI --> RSC
-  UI --> API
-  API --> PG
-  API --> OAI
-  RSC --> API
-```
+### 1.2 How to read the scores
 
-**In one sentence:** The browser talks to **Next.js**, which reads/writes **Postgres via Prisma** and calls **OpenAI** for language tasks (analysis, rewrite, embeddings helper).
+All scores run from **0 to 100**.
 
-### 3.2 Stack (authoritative from `package.json`)
+| Score | 100 means | Colour bands |
+|---|---|---|
+| Risk | most dangerous | Low < 30 · Medium 30–49 · High 50–69 · Critical ≥ 70 |
+| Bias | completely one-sided | same bands as risk |
+| Strength | clear, complete, enforceable | High is good: ≥ 70 green · 50–69 yellow · 30–49 orange · < 30 red |
+| Fairness / Ethics | perfectly balanced / fully inclusive | High is good |
+| Confidence | the AI is confident in its review | shown as a percentage |
 
-| Concern | Technology |
-|--------|------------|
-| Framework | Next.js **14.2** (App Router) |
-| UI | React **18**, TypeScript **5.5** |
-| Styling | Tailwind CSS **3.4**, `tailwindcss-animate`, `tailwind-merge`, `clsx`, `class-variance-authority` |
-| Components | Radix UI primitives + local `components/ui/*` (shadcn-style pattern) |
-| Motion | Framer Motion **11** |
-| Icons | Lucide React |
-| Charts | Recharts **2.12** |
-| Auth | **NextAuth.js 4** (Credentials provider, JWT sessions) |
-| Password hashing | bcryptjs |
-| Database | **PostgreSQL** (designed for Neon; any Postgres works if URL is valid) |
-| ORM | **Prisma 6** |
-| AI SDK | **OpenAI** official Node client **4.x** |
-| Documents | **pdf-parse** (PDF), **mammoth** (DOCX); TXT/MD/RTF handled in code |
-| Validation / shapes | Zod **3.23** |
+A contract's overall risk, bias and strength are the averages over clauses that contain real obligations. Titles, preambles, party details and signature blocks are deliberately **not scored**, so they don't make a contract look safer than it is.
 
-### 3.3 Important runtime details
+A contract counts as a **High Risk** alert on the dashboard when its overall risk is 70 or more.
 
-- **`pdf-parse` and `mammoth`** are listed in `next.config.js` under `experimental.serverComponentsExternalPackages` so they bundle correctly on the server.
-- **Webpack aliases** set `canvas` and `encoding` to `false` to avoid optional native dependency issues from the PDF stack.
-- **Path alias:** `@/*` maps to the repository root (`tsconfig.json`).
+### 1.3 The typical journey
 
-### 3.4 Where “business logic” lives
-
-| Folder | Role |
-|--------|------|
-| `app/` | Routes: UI pages and `app/api/**/route.ts` HTTP handlers. |
-| `lib/` | Auth config, Prisma singleton, OpenAI singleton, parsing pipeline, small utilities. |
-| `ai/` | Prompts (`prompts.ts`), analysis orchestration (`analysis.ts`), embedding helper (`embeddings.ts`). |
-| `config/` | Static config such as `jurisdictions.ts`; `users.json` exists for documented patterns (primary users are DB-backed). |
-| `components/` | Reusable UI and layout (`dashboard-layout`, sidebar, shadcn-style primitives). |
-| `prisma/` | `schema.prisma`, migrations (if present), `seed.ts`, optional one-off scripts. |
-| `types/` | Type augmentation (e.g. NextAuth session fields). |
+1. Sign in.
+2. Pick your **working jurisdiction** in the top bar (it is remembered).
+3. **Upload** a document → you land on the contract page and the **analysis starts automatically** (usually 5–15 seconds).
+4. Read the scores, the clause-by-clause findings, the loopholes and the fairness verdict.
+5. Open any clause to stress-test it, get a rewrite or benchmark it.
+6. Use **Drafting** to polish wording, or the **Rule Book** to generate a new contract.
 
 ---
 
-## Part 4 — Data model (Prisma / Postgres)
+## Part 2 — Every screen and what it does
 
-All persistent entities are defined in `prisma/schema.prisma`. Table names use `@@map` (e.g. `users`, `contracts`).
+### 2.1 Landing page (`/`)
 
-### 4.1 Entity list (technical → normal)
+Public marketing page: headline, four feature cards (Contract Analysis, Loophole Detection, Fairness Assessment, Adversarial Stress Testing) and "Get Started" / "Sign In" buttons that go to `/login`.
 
-| Model | Technical | Plain English |
-|-------|-----------|----------------|
-| `User` | `cuid` id, unique email, `passwordHash`, `role` (`admin` \| `user`), optional `image`, `jurisdiction` default `US` | A person who can log in; admins have elevated role in app logic. |
-| `Contract` | Belongs to `User`; stores `rawText`, `cleanedText`, `fileName`, `fileType`, optional `fileUrl`, status, scores, summary | One uploaded agreement and its extracted text + high-level metrics. |
-| `Clause` | Belongs to `Contract`; `clauseNumber`, text, optional scores, `analysisJson`, `category` | One section or numbered block inside a contract. |
-| `ClauseVersion` | History rows per clause: version number, text, optional scores, `changeReason` | Audit trail when clause text changes. |
-| `AnalysisResult` | Per contract + user; `analysisType` string; `resultJson`; optional scores | Stored output of a specific analysis run (loophole, fairness, etc.). |
-| `StressTest` | Per clause; attack scenarios JSON, litigation metrics | Result of adversarial stress testing on one clause. |
-| `Template` | Reusable document body + `fields` JSON, category, jurisdiction | A blueprint used to generate documents from user answers. |
-| `RiskProfile` | One per user (unique `userId`); tolerance, industry, optional JSON preferences | User-level preferences for risk posture / voice. |
-| `Webhook` | URL, event list, secret — **schema exists**; integration depth depends on app usage | Placeholder / future integration for outbound notifications. |
+### 2.2 Login (`/login`)
 
-### 4.2 Relationship rules
+- Email + password form. Emails are matched case-insensitively.
+- A wrong email and a wrong password show the **same** message ("Invalid email or password"), so the form can't be used to discover which accounts exist.
+- On success: a short "Welcome!" state, then a full page load of `/dashboard`.
+- Sessions last **30 days** (signed JWT cookie).
 
-- Deleting a **User** cascades to their **Contracts** and related rows per schema `onDelete: Cascade` where defined.
-- **Contracts** own **Clauses**; **Clauses** own **Versions** and **StressTests**.
+### 2.3 App shell (all signed-in pages)
+
+**Top bar**
+- "Clause.Ai" title (links to the dashboard).
+- **Working jurisdiction selector** (shows the code, e.g. `FR`). Changing it saves to your profile immediately and becomes the default for uploads, drafting and template generation. The same setting appears in Settings.
+- **Account menu**: name and email, Settings, Sign out.
+- On phones: a **menu button** opens the navigation as a slide-in drawer.
+
+**Sidebar** (desktop; collapsible with "Collapse Sidebar")
+- Dashboard · Repository · Manage Team · Rule Book
+- *Intelligence:* AI Drafting · Analysis · Analytics
+- Settings (bottom)
+
+**Route protection:** visiting any app page while signed out redirects to `/login`. After signing in you land on the dashboard (not the page you originally requested).
+
+### 2.4 Dashboard (`/dashboard`)
+
+- **Draft New Contract** — a scrollable carousel: a "Blank Contract" tile (opens Drafting) and up to 8 templates. Clicking a template opens it directly in the Rule Book's generate dialog.
+- **Four stat cards** (your contracts only):
+  - **Analyzed** — contracts with status *analyzed*
+  - **High Risk** — overall risk ≥ 70
+  - **Awaiting Analysis** — uploaded or currently analyzing
+  - **Total** — all contracts
+- **Recent Contracts** — your 10 newest contracts with a search box (filters by title) and "See all". Columns: name, status, uploaded date, region (jurisdiction), risk score, number of clauses, contract type.
+
+### 2.5 Repository (`/contracts`)
+
+- Every contract you uploaded or generated, newest first, **20 per page** with Previous/Next.
+- **Search** (debounced) matches the title **and the full document text**.
+- **Status filter**: All · Analyzed · Not analyzed · Analyzing · Failed.
+- "Upload contract" / "Upload" buttons.
+
+**Status labels**
+
+| Internal status | Shown as | Meaning |
+|---|---|---|
+| `uploaded` | Not analyzed | Text extracted, no analysis yet |
+| `parsing` | Analyzing | Analysis in progress (or was interrupted — you can re-run it) |
+| `analyzed` | Analyzed | Scores and findings available |
+| `error` | Failed | The last analysis failed — re-run it |
+
+### 2.6 Upload (`/contracts/upload`)
+
+- **Drag and drop** or browse for one file.
+- **Accepted formats:** PDF · Word (`.docx` and legacy `.doc`) · OpenDocument (`.odt`) · RTF · TXT · Markdown · HTML/HTM · images (`.png`, `.jpg`, `.jpeg`, `.webp`).
+- **Scanned PDFs and photos** are read with AI OCR (see 3.3). The page tells you this may take up to a minute.
+- **Maximum size: 4.5 MB** (the largest request Vercel accepts). Oversized or unsupported files are rejected before upload with a clear message.
+- **Title** (required; pre-filled from the file name).
+- **Jurisdiction** (defaults to your working jurisdiction).
+- **Contract type** (optional; 15 types such as Service Agreement, NDA, Employment Contract, Terms of Service, Privacy Policy).
+- **Upload & Analyze** — uploads, then opens the contract page, which **starts the analysis automatically**.
+- Clear errors for: corrupted or password-protected files, files with no text, scans over 30 pages, failed OCR.
+
+### 2.7 Contract page (`/contracts/[id]`)
+
+**Header**
+- Title, an inline **jurisdiction dropdown** (change it and re-analyze to review the same contract under another country's law), contract type, status badge, upload date.
+- **Analyze Contract / Re-analyze** button — shows "Analyzing N clauses…" while running. Always available, including for contracts stuck in *Analyzing*.
+- Analysis failures appear as a red banner; the page stays usable.
+
+**Score rings** — overall Risk, Bias and Strength (0–100, colour-coded).
+
+**Tabs**
+
+| Tab | Contents |
+|---|---|
+| **Overview** | AI summary of the contract (after analysis) · details (file name, type, jurisdiction, contract type, clause count, analyses run, created/updated) · **Clause Risk Distribution** bars, riskiest first |
+| **Clauses** (default) | One expandable card per clause: number, title, category, risk/bias/strength badges. Expanded: full clause text, up to 3 issues with severity, a **suggested revision** (redrafted clause in the clause's own language, only for risk ≥ 40), a short explanation, and the three clause tools (below) |
+| **Analysis** | The last 5 analysis results: type, date, risk, confidence; detected **loopholes** and the **fairness assessment**; per-clause risk/bias results; ethics and benchmark results |
+| **Timeline** | Clauses that have saved versions, with version and stress-test counts |
+
+**Clause tools** (on each expanded clause)
+- **Stress Test** — simulates opposing lawyers, a regulator and an arbitrator attacking the clause: up to 3 attack scenarios with success probability, litigation risk, severity index, up to 2 ambiguous readings and 2 defensive redrafts. Saved to the clause's stress-test history.
+- **Rewrite** — a plain-language redraft in the clause's own language, with a list of changes and enforceability notes. Nothing is saved until applied.
+- **Benchmark** — compares the clause with market practice: quality score, percentile, how common it is, court reception, strengths, weaknesses, missing elements, improvement suggestions. Saved as a *benchmark* analysis.
+
+> Clause tool results currently appear as raw structured data. There is no "apply rewrite" or "delete contract" button yet, although the APIs exist (Part 6).
+
+### 2.8 Analysis (`/analysis`)
+
+- All your analysis results (newest 100), as cards: contract, type, date, issues found, risk badge. Clicking opens the contract.
+- **Stats:** total analyses, average risk, most common type by issues found.
+- **Search** by contract name; **filter** by type: Full Analysis · Ethics Scan · Clause Benchmark.
+- **New Analysis** dialog: choose a contract and **Full Analysis** (clause scoring + loopholes + fairness) or **Ethics Scan** (bias, discrimination, power imbalance, accessibility). Benchmarks are started per clause from the contract page.
+
+### 2.9 Drafting (`/drafting`)
+
+- Paste a clause (up to 5,000 characters, any language) or pick a sample (Liability Limitation, Termination, Indemnification, Confidentiality).
+- **Style:** Corporate · Startup Friendly · Assertive · Plain Language.
+- **Jurisdiction:** any of the five (defaults to your working jurisdiction).
+- **Result:** original and rewrite side by side with changed words highlighted, a list of changes with reasons, and enforceability notes. The rewrite stays in the input's language.
+- **Use This Version** puts the rewrite back into the editor for further iteration; **Regenerate** asks again; **Copy** buttons.
+- **Session History** — your last 20 rewrites in this browser session (restore or copy). Not saved to the database.
+
+### 2.10 Rule Book (`/templates`)
+
+- Template cards with category, base jurisdiction and number of fields. Search, category filter, jurisdiction filter.
+- Seeded templates: **Non-Disclosure Agreement**, **Service Agreement**, **Employment Contract**.
+- **Generate dialog:**
+  - template preview,
+  - **Generate for** — any of the five jurisdictions (the AI adapts provisions that would be unenforceable there),
+  - **Draft in French / Portuguese** switch (for France / Brazil),
+  - the template's fields (blank fields become `[TO BE COMPLETED]`).
+- **Result:** the generated contract, the AI's notes on assumptions/adaptations, **Copy**, **Edit Fields**, and **Open & Analyze** — the contract is already saved to your Repository as "*Template name* (CODE)" and opening it starts the analysis.
+- Generation takes about 10–20 seconds.
+
+### 2.11 Settings (`/settings`)
+
+| Tab | What works |
+|---|---|
+| **Profile** | **Default Jurisdiction — saved automatically** (same setting as the top bar). Display name field, read-only email and role. ⚠️ "Save Changes" does not persist the name yet. |
+| **Preferences** | ⚠️ Default view and notification switches are not connected to anything yet. |
+| **Risk Profile** | ⚠️ Tolerance slider, focus areas and voice profile are not saved yet. The backend already supports them (`PATCH /api/profile`) and the analysis prompts already use the stored tolerance and focus areas. |
+| **Integrations** | DocuSign, Google Drive, Notion, Slack, HubSpot — marked *Coming Soon*. |
+| **Admin** (admins only) | ⚠️ The user list and "Add User" are placeholders, not connected to the database. |
+
+The sidebar's "Manage Team" link opens Settings (it does not yet jump to the Admin tab).
+
+### 2.12 Analytics (`/analytics`)
+
+⚠️ Shows **sample data** (labelled as such): risk trend, clause category distribution, jurisdiction comparison, ethics distribution and top risky clauses. Not yet connected to your contracts.
+
+### 2.13 Chat with Document
+
+✅ A chat panel on the contract page ("Chat with document" button, or the floating "Ask this document" button). On desktop it docks beside the page and opens automatically after an upload; on a phone it is full screen.
+
+- Answers come only from the contract's text and cite the clauses they rely on as **[Clause N]** chips. Clicking a chip opens and highlights that clause.
+- Documents up to about 40,000 characters are sent to the model whole. Longer ones use retrieval: clause embeddings (`text-embedding-3-small`, 512 dimensions, computed on the first question and stored), boosted by keyword overlap and by explicit references such as "article 12"; the opening clause (the parties) is always included.
+- Answers stream in, follow-up questions use the last 8 messages, and the reply is in the language of the question. If the answer is not in the document, it says so.
+- The conversation is saved per user and contract (`chat_messages`) and can be cleared. Editing a clause deletes its stored embedding.
+- Code: `ai/chat.ts`, `app/api/contracts/[id]/chat/route.ts`, `components/app/document-chat.tsx`.
+
+### 2.14 Break My Clause
+
+✅ Every expanded clause has a **Break My Clause** button. It opens a debate that streams in turn by turn:
+
+1. A **Challenger** agent attacks the clause and a **Defender** agent defends it, for two rounds. Each sees the clause and everything said so far.
+2. A **Judge** agent scores both sides (0–100 each), names the round winners, lists the vulnerabilities exposed and may recommend a redrafted clause.
+3. The clause's **Resilience score** is computed from the two scores (`50 + (defender − challenger) / 2`); a gap under 5 points is a draw. It appears as a badge on the clause.
+
+The judge's revision can be applied in one click (saved as a new clause version). Debates are stored in `clause_debates`; editing a clause deletes its debates because they no longer match the text. A debate is 5 short AI calls (about 12–17 seconds). Scores vary a little between runs.
+
+Code: `ai/debate.ts`, `app/api/clauses/[id]/debate/route.ts`, `components/app/clause-debate-dialog.tsx`.
 
 ---
 
-## Part 5 — Authentication and sessions
+## Part 3 — How the processing works
 
-### 5.1 How login works (technical)
+### 3.1 Upload pipeline (`lib/ingest.ts`, `lib/parsing.ts`)
 
-- **Provider:** NextAuth **Credentials** only (`lib/auth.ts`).
-- **Verification:** Email looked up in `User` table; password checked with `bcrypt.compare` against `passwordHash`.
-- **Session strategy:** **JWT** (not database sessions). Session max age **30 days**.
-- **Custom pages:** `signIn: "/login"`.
-- **Callbacks:** User `id` and `role` are copied into JWT and then into `session.user` (see `types/next-auth.d.ts` for typings).
+1. **Validate** — extension and size (4.5 MB), on both the page and the server (`lib/file-types.ts` is the shared list).
+2. **Extract text locally (free)**:
+   - PDF → `pdf-parse`
+   - DOCX → `mammoth`
+   - DOC → `word-extractor`
+   - ODT → unzip `content.xml` with `jszip`
+   - RTF → built-in reader that keeps visible text (including bold/italic runs and accented characters) and drops fonts, colours and metadata
+   - HTML → tags, scripts and styles stripped, entities decoded
+   - TXT/MD → UTF-8 (UTF-16 and BOMs handled)
+3. **OCR when needed** — images always; PDFs when they have almost no text (under ~40 characters per page). See 3.3.
+4. **Clean** — normalise spaces and invisible characters, drop page numbers ("Page 3 of 10", "Página 2 de 5", "- 4 -"), and re-join lines that a PDF wrapped mid-sentence.
+5. **Split into clauses** (3.2), **categorise**, and save the contract with all clauses in one insert.
 
-### 5.2 Same thing, simply
+### 3.2 Clause splitting
 
-Users sign in with **email and password** stored in your **Postgres** database. The server signs a **token** so the browser stays logged in for a while without storing passwords in the token.
+The splitter follows the document's own structure, in this order of preference:
 
-### 5.3 Default users (development)
+1. **Keyword headings** in English, French and Portuguese: *Article, Art., Artigo, Section, Seção, Clause, Cláusula, Chapitre, Chapter, Capítulo, Titre, Título, Schedule, Annex(e), Anexo, Exhibit, Appendix* followed by a number, roman numeral, letter or ordinal word (*premier, primeira, segunda, …*). Example: `ARTICLE 3 – RÉSILIATION`, `CLÁUSULA SEGUNDA – DO PAGAMENTO`.
+2. **Numbered headings** `1.`, `2)`, `1.1`, `3º` followed by a capitalised word — top level first, and only if the numbers run in sequence (so numbered lists inside a clause aren't mistaken for clauses).
+3. Two-level numbering (`1.1`, `1.2`, `2.1`) if there is no top level.
+4. **Roman numerals** (`IV. Payment`).
+5. **ALL-CAPS heading lines**.
+6. If there is no structure at all: chunks of about 2,000 characters at line breaks.
 
-Created by `prisma/seed.ts` (hashed passwords):
+Then:
+- Text before the first heading becomes a **Preamble** clause (parties, recitals).
+- Heading-only fragments (a title with no body) are folded into the next clause.
+- Clauses over 5,000 characters are split into "(cont.)" parts.
+- At most **150 clauses**; very long documents merge neighbours.
+- **Titles** are cleaned: numbering and separators removed, ALL-CAPS converted to Title Case, "Payment. The client shall…" → "Payment".
 
-| Email | Password | Role |
-|-------|----------|------|
-| `admin@clauseai.com` | `admin123` | admin |
-| `user@clauseai.com` | `password` | user |
+**Categories** (keyword scoring in English, French and Portuguese, title weighted 3×): Definitions · Payment · Term & Termination · Liability · Indemnification · Confidentiality · Intellectual Property · Data Protection · Dispute Resolution · Governing Law · Force Majeure · Warranty · Non-Compete · Assignment · Notices · General.
 
-**Production:** Replace or remove these accounts; never ship known passwords.
+### 3.3 OCR for scans and photos
 
----
+- **Photos** (`.png/.jpg/.jpeg/.webp`) are sent to the model as a high-detail image.
+- **Scanned PDFs** are split into single pages with `pdf-lib` and each page is read in parallel (6 at a time), so a 10-page scan takes roughly as long as 2 pages.
+- Limit: **30 pages** per scanned PDF.
+- The model is told to transcribe exactly, in the original language, with no commentary.
 
-## Part 6 — Document pipeline (upload → text → clauses)
+### 3.4 Full analysis (`POST /api/contracts/[id]/analyze`)
 
-### 6.1 Supported files
+Two things run **at the same time**:
 
-From `lib/parsing.ts` and upload validation: **pdf, docx, txt, rtf, md**.
+- **Clause review** — clauses are sent **in batches** (up to 6 clauses / 7,000 characters per request, 6 requests in parallel) instead of one request per clause. Each clause gets risk, bias, strength and confidence (0–100), up to 3 issues, an optional redraft and a short explanation. Clauses under 40 characters are skipped.
+- **Whole-contract review** — one request returns the **summary**, up to 6 **loopholes** (title, type, severity, affected clause, description, fix) with an overall loophole risk, and the **fairness** assessment (score, which party is favoured, assessment, up to 3 unconscionability flags).
 
-### 6.2 Steps
+Then, in one database transaction: clause scores and findings are saved, the contract gets its averages, status *analyzed* and summary, and a *full* analysis record is stored. If every clause batch fails or the review fails, the status becomes *Failed* and you can re-run it. Typical time: **5–15 seconds**.
 
-1. **Binary in:** File read as `Buffer` on the server.  
-2. **Format-specific extract:** PDF via dynamic `import("pdf-parse")`, DOCX via `mammoth.extractRawText`, plain text from UTF-8, RTF via regex stripping.  
-3. **Clean:** `cleanText()` normalizes newlines, trims lines, removes common page-number / header/footer noise.  
-4. **Split into clauses:** Heuristics using section patterns (Article/Section/Clause numbering, etc.).  
-5. **Categorize:** Keyword map (Payment, Termination, Liability, …) assigns a best-effort `category`.  
-6. **Persist:** `POST /api/contracts` parses then creates `Contract` + many `Clause` rows (see route implementation).
+The reviewer's saved **risk tolerance** and **focus areas** (risk profile) are added to both prompts.
 
-### 6.3 Limits
+### 3.5 Other AI features
 
-- **Upload preview** (`/api/upload`): max **10 MB**; returns parsed text preview (first ~2000 chars of cleaned text) and clause count **without** persisting a contract (until the contracts API is used accordingly).
+| Feature | Endpoint | Input | Stored as |
+|---|---|---|---|
+| Stress test | `POST /api/clauses/[id]/stress-test` | one clause | `StressTest` row |
+| Clause rewrite (contract page) | `POST /api/clauses/[id]/rewrite` | one clause + style | nothing (suggestion only) |
+| Drafting rewrite | `POST /api/clauses/rewrite` | free text ≤ 5,000 chars + style + jurisdiction | nothing |
+| Benchmark | `POST /api/clauses/[id]/benchmark` | one clause + its category | `AnalysisResult` (*benchmark*), risk = 100 − quality score |
+| Ethics scan | `POST /api/analysis/ethics` | whole contract | `AnalysisResult` (*ethics*), risk = 100 − ethics score |
+| Template generation | `POST /api/templates/[id]/generate` | template + fields + jurisdiction + language | new `Contract` with clauses |
 
----
+### 3.6 Jurisdictions (`config/jurisdictions.ts`)
 
-## Part 7 — AI layer
+The single source of truth for every dropdown, label, validation and prompt.
 
-### 7.1 Configuration
+| Code | Country | Legal system | Language | Key law given to the AI |
+|---|---|---|---|---|
+| US | United States | Common law | English | UCC Art. 2, state contract law, unconscionability, FTC Act / state consumer law, state non-compete limits (e.g. Cal. B&P §16600) |
+| IN | India | Common law (Contract Act 1872) | English | Contract Act s.27, s.73–74, s.124; Specific Relief Act; Arbitration Act 1996; Consumer Protection Act 2019; DPDP Act 2023; stamp duty |
+| UK | United Kingdom | Common law (English law) | English | UCTA 1977; Consumer Rights Act 2015; UK GDPR / DPA 2018; Late Payment Act 1998; penalty doctrine; restraint of trade |
+| **FR** | **France** | Civil law (Code civil, 2016 reform) | French | Code civil art. 1104 (good faith), 1171 (imbalance in adhesion contracts), 1195 (imprévision), 1231-5 (penalty clauses); Code de commerce L442-1; Code de la consommation L212-1; Code du travail (paid non-competes); GDPR / CNIL; Loi Toubon |
+| **BR** | **Brazil** | Civil law (Código Civil 2002) | Portuguese | Código Civil art. 421, 422, 423–424, 412 (penalty cap); CDC art. 51 (abusive clauses); CLT; LGPD; Lei de Arbitragem |
 
-- **Client:** `lib/openai.ts` — singleton `OpenAI` using `process.env.OPENAI_API_KEY`.
-- **Model:** `AI_MODEL` env var, default **`gpt-4o-mini`**.
-- **Embeddings helper:** `ai/embeddings.ts` uses **`text-embedding-3-small`**, truncating input to **8000** characters. Includes `cosineSimilarity` for vector comparison **in code**.
-
-### 7.2 Prompts and structured outputs
-
-- **`ai/prompts.ts`** — system prompts and enums (e.g. rewrite styles, summary view types).
-- **`ai/analysis.ts`** — TypeScript interfaces for analysis shapes (loopholes, fairness, stress test, rewrite, ethics, etc.) and functions that call OpenAI chat completions using those prompts.
-
-### 7.3 Non-technical explanation
-
-The app sends **selected contract or clause text** and **instructions** to OpenAI. The model returns **JSON-like structured answers** (scores, lists of issues, suggested wording). The app **stores** some of those results on contracts, clauses, or `AnalysisResult` rows depending on the endpoint.
-
-### 7.4 Honest note on “semantic search”
-
-- **`ai/embeddings.ts`** exists and can produce embeddings for text.
-- **`app/api/search/route.ts`** currently implements **case-insensitive substring search** in Postgres (`contains`) across contracts and clauses. The file itself contains a **TODO** to replace this with true vector/embedding search.  
-So: **product messaging may say “semantic search”**; **current implementation is primarily lexical unless you extend it.**
-
----
-
-## Part 8 — HTTP API (Route Handlers)
-
-Unless noted, routes expect a **logged-in session** (401 if missing).
-
-| Method | Path | Role |
-|--------|------|------|
-| * | `/api/auth/[...nextauth]` | NextAuth endpoints. |
-| POST | `/api/upload` | Parse file only; returns text preview + clause count. |
-| GET, POST | `/api/contracts` | List contracts (pagination, filters); **POST** creates contract from uploaded file (parse + DB). |
-| GET, PATCH, DELETE | `/api/contracts/[id]` | Single contract CRUD-style access. |
-| POST | `/api/contracts/[id]/analyze` | Run contract-level AI analysis pipeline; persists results. |
-| GET, PATCH, DELETE | `/api/clauses/[id]` | Clause fetch/update/delete. |
-| POST | `/api/clauses/[id]/stress-test` | Adversarial stress test for one clause. |
-| POST | `/api/clauses/[id]/benchmark` | Clause benchmarking / scoring. |
-| POST | `/api/clauses/[id]/rewrite` | Rewrite one clause with style instructions. |
-| POST | `/api/clauses/rewrite` | Bulk or alternate rewrite entry (see implementation). |
-| GET, POST | `/api/templates` | List / create templates. |
-| GET, PATCH, DELETE | `/api/templates/[id]` | Template by id. |
-| POST | `/api/templates/[id]/generate` | Fill template fields → generated document text. |
-| POST | `/api/analysis/ethics` | Ethics / bias style scan. |
-| GET | `/api/dashboard/stats` | Aggregated stats for dashboard widgets. |
-| POST | `/api/search` | Search contracts + clauses for current user. |
-
-Many handlers include a **`// TODO: Add rate limiting middleware`** comment — **rate limiting is not implemented** in-repo as of this document.
+Every prompt states the jurisdiction, its legal system and these laws, and tells the model that documents may be in English, French or Portuguese: explanations are written in English, while redrafts and rewrites stay in the document's language.
 
 ---
 
-## Part 9 — Jurisdiction configuration
+## Part 4 — Cost and speed
 
-`config/jurisdictions.ts` defines metadata for **US**, **IN** (India), and **UK**: legal system name, terminology map, and compliance notes. This is used to **steer language and disclaimers** in prompts/UI, not to guarantee legal compliance by itself.
+### 4.1 Models
+
+| Use | Model | Price per 1M tokens (input / output) |
+|---|---|---|
+| All analysis, drafting, generation, OCR | `gpt-4o-mini` — the cheapest "mini" model | $0.15 / $0.60 |
+| Chat retrieval for long documents | `text-embedding-3-small` | $0.02 |
+
+The chat model can be overridden with the `AI_MODEL` environment variable; nothing else uses a more expensive model.
+
+### 4.2 How cost is kept down
+
+- **Local text extraction** for every text-based format — AI is only used for OCR when a file has no text.
+- **Batched clause review** — the instructions are sent once per 6 clauses instead of once per clause.
+- **One whole-contract call** for loopholes, fairness and summary (previously two calls, each sending the full text).
+- **Hard caps on output** — limited list lengths and word counts on every field (output tokens cost 4× input), plus a `max_tokens` limit on every request.
+- **Input caps** — 2,500 characters per clause, 48,000 characters per whole-contract review (very long documents keep the beginning and end, where parties, governing law and signatures usually are).
+- **Boilerplate is not analysed** (clauses under 40 characters) and not scored.
+- Static instructions come first in every prompt so OpenAI's automatic prompt caching can discount repeated prefixes.
+
+### 4.3 Rough cost per action (estimates)
+
+| Action | Typical cost |
+|---|---|
+| Upload of a text-based file | free (no AI) |
+| Full analysis of a 10–20 page contract | about $0.005–0.015 |
+| Stress test / rewrite / benchmark of one clause | under $0.001 each |
+| Ethics scan | about $0.002–0.005 |
+| Template generation | about $0.002 |
+| OCR | about $0.004 per page or photo |
+
+Measured on test documents: French 7-clause contract analysed in ~10 s; Brazilian contract ~7 s; template generation ~8 s; OCR of a photo or 2-page scan ~3 s.
 
 ---
 
-## Part 10 — Environment variables
+## Part 5 — Data model (Prisma / PostgreSQL)
 
-From `.env.example`:
+| Model (table) | Holds | Notes |
+|---|---|---|
+| `User` (`users`) | email, name, bcrypt password hash, role (`admin`/`user`), default jurisdiction | |
+| `RiskProfile` (`risk_profiles`) | risk tolerance, preferred clauses (focus areas), voice profile, industry | one per user; used in analysis prompts |
+| `Contract` (`contracts`) | title, file name/type, raw and cleaned text, status, jurisdiction, contract type, overall risk/bias/strength, summary | belongs to a user |
+| `Clause` (`clauses`) | number, title, text, category, risk/bias/strength, analysis JSON | belongs to a contract |
+| `ClauseVersion` (`clause_versions`) | earlier versions of a clause's text, reason, author | created when a clause is edited |
+| `StressTest` (`stress_tests`) | attack scenarios, litigation risk, severity, weaknesses | per clause |
+| `AnalysisResult` (`analysis_results`) | type (`full`/`ethics`/`benchmark`), result JSON, risk, confidence, jurisdiction | per contract and user |
+| `Template` (`templates`) | name, description, category, base jurisdiction, content with `{{placeholders}}`, field definitions | |
+| `ChatMessage` (`chat_messages`) | chat history per contract and user | Chat with Document |
+| `ClauseEmbedding` (`clause_embeddings`) | embedding vector per clause | chat retrieval on long documents |
+| `ClauseDebate` (`clause_debates`) | transcript, verdict, challenger/defender/resilience scores, winner | Break My Clause; per clause |
+| `Webhook` (`webhooks`) | name, URL, events, secret | not used by the app |
+
+Deleting a user deletes their contracts; deleting a contract deletes its clauses, analyses and chat; deleting a clause deletes its versions, stress tests, debates and embedding.
+
+**Migrations** (`prisma/migrations`): `20260316202604_init`, `20261011000000_document_chat` (adds the two chat tables) and `20261116000000_clause_debates` (adds the debate table). The production database is baselined, so `prisma migrate deploy` applies new migrations normally.
+
+---
+
+## Part 6 — HTTP API
+
+All endpoints require a signed-in session (401 otherwise) and only ever return the caller's own data. Errors are JSON: `{ "error": "message" }`.
+
+| Method & path | Purpose |
+|---|---|
+| `GET /api/contracts?page&limit&search&status` | List contracts (max 50 per page) |
+| `POST /api/contracts` (multipart: `file`, `title`, `jurisdiction?`, `contractType?`) | Upload and parse a document → `{ id, title, _count, usedOcr }` |
+| `GET /api/contracts/[id]` | Contract with clauses and last 5 analyses (document text omitted) |
+| `PATCH /api/contracts/[id]` | Update `title`, `contractType`, `jurisdiction` |
+| `DELETE /api/contracts/[id]` | Delete a contract (no UI button yet) |
+| `POST /api/contracts/[id]/analyze` | Run the full analysis |
+| `GET /api/clauses/[id]` | Clause with versions and stress tests |
+| `PATCH /api/clauses/[id]` (`clauseText`, `changeReason?`) | Replace a clause's text, record a version, clear stale scores (no UI yet) |
+| `POST /api/clauses/[id]/rewrite` (`style?`) | Suggest a rewrite (default style `plain_language`) |
+| `POST /api/clauses/[id]/stress-test` | Adversarial stress test |
+| `POST /api/clauses/[id]/benchmark` | Benchmark against market practice |
+| `POST /api/clauses/rewrite` (`text`, `style`, `jurisdiction`) | Free-text rewrite for Drafting |
+| `POST /api/analysis/ethics` (`contractId`) | Ethics and bias scan |
+| `GET /api/analyses` | Your last 100 analysis results with issue counts |
+| `GET /api/dashboard/stats` | Dashboard counters and the 10 newest contracts |
+| `GET /api/templates` | Active templates |
+| `POST /api/templates` | Create a template (admin) |
+| `GET / PUT / DELETE /api/templates/[id]` | Read / update / delete a template (write = admin) |
+| `POST /api/templates/[id]/generate` (`fields`, `jurisdiction?`, `useLocalLanguage?`) | Generate a contract and save it |
+| `GET / PATCH /api/profile` | Read / update name, default jurisdiction and risk profile |
+| `/api/auth/*` | NextAuth (sign in, session, CSRF, sign out) |
+
+Rewrite styles: `corporate`, `startup_friendly`, `assertive`, `plain_language`. Jurisdiction codes: `US`, `IN`, `UK`, `FR`, `BR`.
+
+Long-running routes declare `maxDuration = 60` (the Vercel Hobby maximum): upload, analyze and template generation.
+
+---
+
+## Part 7 — Code map
+
+| Path | Responsibility |
+|---|---|
+| `app/page.tsx` | Landing page |
+| `app/login/page.tsx` | Login |
+| `app/(dashboard)/*/page.tsx` | App pages (dashboard, contracts, upload, contract detail, analysis, analytics, drafting, templates, settings) |
+| `app/api/**/route.ts` | API (Part 6) |
+| `middleware.ts` | Redirects signed-out users from app pages to `/login` |
+| `ai/prompts.ts` | All system prompts, rewrite styles, reviewer profile |
+| `ai/analysis.ts` | AI calls, batching, output validation and result types |
+| `config/jurisdictions.ts` | Jurisdictions, legal context, contract types |
+| `lib/ingest.ts` | Upload pipeline and OCR |
+| `lib/parsing.ts` | Text extraction, cleaning, clause splitting, categories |
+| `lib/file-types.ts` | Supported formats and upload limit (shared by page and server) |
+| `lib/api.ts` | Session helper and JSON error helpers for routes |
+| `lib/auth.ts` | NextAuth configuration |
+| `lib/openai.ts` | OpenAI client and model names |
+| `lib/db.ts` | Prisma client |
+| `lib/utils.ts` | Score levels, formatting, concurrency helper |
+| `lib/design-tokens.ts` | Chart colours, status labels |
+| `components/layout/*` | Header, sidebar, providers, working-jurisdiction context |
+| `components/app/*` | Contracts table, jurisdiction dropdown, status badge, stat card, template carousel, page header |
+| `components/ui/*` | Base UI components (Radix-based), including the mobile drawer (`sheet.tsx`) |
+| `prisma/schema.prisma`, `prisma/migrations` | Database schema and migrations |
+| `prisma/seed.ts` | Demo users, risk profiles and the three templates |
+
+---
+
+## Part 8 — Running, deploying, operating
+
+### 8.1 Environment variables
 
 | Variable | Required | Purpose |
-|----------|----------|---------|
-| `DATABASE_URL` | Yes | Postgres connection string (SSL typical for Neon: `?sslmode=require`). |
-| `NEXTAUTH_SECRET` | Yes | Secret for signing JWT/session material. |
-| `NEXTAUTH_URL` | Yes | Canonical app URL (local vs production). |
-| `OPENAI_API_KEY` | Yes for AI features | OpenAI API access. |
-| `AI_MODEL` | No | Override chat model (default `gpt-4o-mini`). |
-| `BLOB_READ_WRITE_TOKEN` | No | For Vercel Blob if you add file storage to match README optional section. |
+|---|---|---|
+| `DATABASE_URL` | yes | PostgreSQL connection (Neon) |
+| `NEXTAUTH_SECRET` | yes | Signs session tokens |
+| `NEXTAUTH_URL` | yes in production | Site URL |
+| `OPENAI_API_KEY` | yes for AI features | OpenAI access |
+| `AI_MODEL` | no | Overrides `gpt-4o-mini` |
 
-Never commit `.env`. `.env.example` is the template for teammates and CI secrets naming.
+(`BLOB_READ_WRITE_TOKEN` in `.env.example` is not used — files are not stored, only their text.)
 
----
+### 8.2 Commands
 
-## Part 11 — Scripts and database commands
+| Command | Does |
+|---|---|
+| `npm install` | Installs dependencies and generates the Prisma client |
+| `npm run dev` | Local development server |
+| `npm run build` / `npm start` | Production build / server |
+| `npm run lint` · `npx tsc --noEmit` | Lint · type check |
+| `npx prisma migrate deploy` | Apply pending migrations |
+| `npm run db:seed` | Create demo users and templates (safe to re-run: only creates what is missing) |
+| `npm run db:studio` | Browse the database |
 
-From `package.json`:
+### 8.3 CI/CD
 
-| Script | Command | Meaning |
-|--------|---------|---------|
-| `dev` | `next dev` | Local development server (default port 3000). |
-| `build` | `next build` | Production build. |
-| `start` | `next start` | Run production server after build. |
-| `lint` | `next lint` | ESLint. |
-| `postinstall` | `prisma generate` | Generates Prisma Client after `npm install`. |
-| `db:migrate` | `prisma migrate dev` | Dev migrations (creates migration files). |
-| `db:push` | `prisma db push` | Push schema without migration history (prototyping). |
-| `db:seed` | `tsx prisma/seed.ts` | Seed users, risk profiles, templates. |
-| `db:studio` | `prisma studio` | Web UI for browsing DB. |
+GitHub Actions (`.github/workflows/deploy.yml`) on pushes and pull requests to `main`: lint + type check → build → (on push to `main`) `prisma migrate deploy`. Vercel builds and deploys `main` automatically; a failed build leaves the previous deployment live.
 
-**Typical first-time setup:** `npm install` → configure `.env` → `npx prisma migrate dev` → `npm run db:seed` → `npm run dev`.
+### 8.4 Accounts
 
----
-
-## Part 12 — CI/CD (GitHub Actions)
-
-Workflow: `.github/workflows/deploy.yml` — **Clause AI CI/CD**.
-
-| Job | When | What it does |
-|-----|------|----------------|
-| `lint-and-typecheck` | PR + push to `main` | checkout → Node 20 → `npm ci` → `prisma generate` → `npm run lint` → `npx tsc --noEmit` |
-| `build` | After lint passes | Same install + generate → `npm run build` with secrets: `DATABASE_URL`, `NEXTAUTH_SECRET`, `OPENAI_API_KEY` |
-| `migrate` | Push to `main` only (not PRs) | After build → `npx prisma migrate deploy` with `DATABASE_URL` |
-
-**GitHub repository secrets required:** `DATABASE_URL`, `NEXTAUTH_SECRET`, `OPENAI_API_KEY` (for build job as configured).
+User accounts are created by `prisma/seed.ts` (a demo admin and a demo user) and by one-off scripts in `prisma/`. Passwords are stored only as bcrypt hashes. **Change all default and script-defined passwords** — the repository is public and those scripts and the README contain them in plain text.
 
 ---
 
-## Part 13 — Deployment (Vercel + Neon pattern)
+## Part 9 — Security notes and known gaps
 
-1. **Neon (or any Postgres):** create database, copy `DATABASE_URL`.  
-2. **Vercel:** import repo, set env vars to match `.env.example` + production `NEXTAUTH_URL`.  
-3. **Migrations:** CI runs `migrate deploy` on main; alternatively add migrate step to Vercel build if you prefer (trade-offs: build time vs explicit CI).  
-4. **OpenAI:** billing and key scoped for production usage; monitor spend.
+**Security**
+- Every API route checks the session and scopes queries to the signed-in user.
+- Login errors don't reveal whether an email exists.
+- The public repo contains plaintext passwords for seeded/admin accounts (README, `prisma/add-users.ts`, git history) — rotate them.
+- There is **no rate limiting**: a signed-in user could run many AI calls. Consider adding it before opening sign-ups.
+- Never pass the production `DATABASE_URL` as Prisma's `--shadow-database-url` — Prisma resets the shadow database (this wiped production data on 2026-10-11).
 
----
-
-## Part 14 — Security and operational hygiene
-
-- **HTTPS** in production; **rotate** `NEXTAUTH_SECRET` if leaked.  
-- **Password storage:** only bcrypt hashes in DB — good.  
-- **File uploads:** size/type checks exist; still consider virus scanning and storage policy for sensitive legal docs.  
-- **Rate limiting / abuse:** TODOs in code — plan before public launch.  
-- **AI safety:** log retention, PII in prompts, and data residency are **your** operational choices; not fully encoded in this repo.
-
----
-
-## Part 15 — Glossary
-
-| Term | Meaning here |
-|------|----------------|
-| App Router | Next.js file-based routing under `app/`. |
-| Route Handler | `route.ts` exporting HTTP methods for `/api/...`. |
-| JWT session | Stateless signed session blob, not a DB session table. |
-| Prisma | Type-safe ORM; schema is source of truth for tables. |
-| Clause | A structured chunk of contract text with metadata. |
-| Stress test | Simulated opposing arguments against a clause. |
-| Embedding | Numeric vector representing text meaning; helper exists; search may not use it yet. |
+**Known gaps** (also marked ⚠️/🚧 above)
+1. Settings — name, preferences, risk profile and team management don't save; "Manage Team" doesn't open the Admin tab.
+2. Analytics — sample data.
+3. No "delete contract" or "edit clause" button (APIs exist).
+4. No change-password feature.
+5. Re-analysing does not clear scores of clauses that were skipped in the new run.
+6. After signing in, users always land on the dashboard rather than the page they were redirected from.
 
 ---
 
-## Part 16 — Related docs and files
+## Part 10 — Glossary
 
-- **`README.md`** — Extended setup guide (Neon, OpenAI, Vercel, troubleshooting, sample contract). Keep using it for step-by-step onboarding.  
-- **`EVERYTHING.md` (this file)** — Consolidated map of the system as implemented.  
-- **`prisma/schema.prisma`** — Authoritative database shape.  
-- **`lib/parsing.ts`** — Authoritative parsing and clause-splitting behavior.
-
----
-
-## Part 17 — Maintenance checklist for contributors
-
-- [ ] After schema edits: run migrations and regenerate client (`prisma generate` runs on install).  
-- [ ] After adding API routes: secure with `getServerSession`; avoid leaking other users’ `userId`.  
-- [ ] When changing AI behavior: update `ai/prompts.ts` / `ai/analysis.ts` and test token usage.  
-- [ ] Before production: remove default seed credentials or force password reset.  
-- [ ] Align marketing copy with **actual** search implementation if you ship widely.
-
----
-
-*End of Everything document. For day-to-step setup commands and troubleshooting tables, see `README.md`.*
+| Term | Meaning |
+|---|---|
+| Clause | One numbered section of a contract, as split by Clause AI |
+| Jurisdiction | The country whose law the AI applies |
+| Working jurisdiction | Your default jurisdiction, chosen in the top bar |
+| Loophole | A gap or ambiguity a party could exploit |
+| Fairness score | How balanced the contract is between the parties (100 = balanced) |
+| Stress test | Simulated legal attacks on a clause |
+| Benchmark | Comparison of a clause with market-standard drafting |
+| OCR | Reading text from images and scanned pages |
+| Token | The unit OpenAI bills by (roughly ¾ of a word) |
+| Embedding | A numeric fingerprint of text used to find relevant clauses (for chat) |
